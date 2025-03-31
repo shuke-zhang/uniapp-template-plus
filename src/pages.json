@@ -1,0 +1,125 @@
+{
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "kechen",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#ffffff"
+  },
+  "tabBar": {
+    "color": "#707070",
+    "selectedColor": "#49b9ad",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "fontSize": "10px",
+    "height": "50px",
+    "iconWidth": "24px",
+    "spacing": "3px",
+    "position": "bottom",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "iconPath": "static/tabbar/home-off.png",
+        "selectedIconPath": "static/tabbar/home-on.png",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "iconPath": "static/tabbar/mine-off.png",
+        "selectedIconPath": "static/tabbar/mine-on.png",
+        "text": "个人"
+      }
+    ]
+  },
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue",
+      "^z-(.*)": "@zebra-ui/swiper/components/z-$1/z-$1.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "type": "home",
+      "style": {
+        "navigationBarTitleText": "柯臣"
+      }
+    },
+    {
+      "path": "pages/ai/deepseek",
+      "type": "page"
+    },
+    {
+      "path": "pages/ai/index",
+      "type": "page",
+      "style": {
+        "navigationBarTitleText": "AI对话"
+      }
+    },
+    {
+      "path": "pages/auth/index",
+      "type": "auth",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "type": "mine",
+      "style": {
+        "navigationBarTitleText": "柯臣"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "feature/pages",
+      "pages": [
+        {
+          "path": "list-data-preview/detail",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "日志详情"
+          }
+        },
+        {
+          "path": "list-data-preview/index",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "列表预览"
+          }
+        },
+        {
+          "path": "sub-test/index",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "子包测试页"
+          }
+        },
+        {
+          "path": "test/index",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "测试页面"
+          }
+        },
+        {
+          "path": "yaml/index",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "yamlces"
+          }
+        },
+        {
+          "path": "sub-test/component/dialog",
+          "type": "page",
+          "style": {
+            "navigationBarTitleText": "子包测试页-弹窗",
+            "backgroundColorTop": "#000000"
+          }
+        }
+      ]
+    }
+  ]
+}
