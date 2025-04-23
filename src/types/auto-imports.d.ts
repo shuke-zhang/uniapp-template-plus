@@ -92,7 +92,6 @@ declare global {
   const maps: typeof import('../hooks/usePageExpose/index')['maps']
   const markRaw: typeof import('vue')['markRaw']
   const mergeDeep: typeof import('../utils/helpers/mergeDeep')['mergeDeep']
-  const newEventEmitter: typeof import('../utils/helpers/EventEmitter')['newEventEmitter']
   const nextTick: typeof import('vue')['nextTick']
   const numberToLetter: typeof import('../utils/helpers/numberToLetter')['numberToLetter']
   const numericProp: typeof import('../utils/helpers/props')['numericProp']
@@ -203,7 +202,6 @@ declare global {
   const watchEffect: typeof import('vue')['watchEffect']
   const watchPostEffect: typeof import('vue')['watchPostEffect']
   const watchSyncEffect: typeof import('vue')['watchSyncEffect']
-  const webSocket: typeof import('../store/modules/socket/webSocket')['webSocket']
   const wxExtractStreamContent: typeof import('../hooks/useAi/index')['wxExtractStreamContent']
 }
 // for type re-export

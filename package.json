@@ -7,7 +7,7 @@
     "dev:app-android": "uni -p app-android",
     "dev:app-ios": "uni -p app-ios",
     "dev:custom": "uni -p",
-    "serve-images": "http-server D:/project/images -p 8080 --silent",
+    "serve-images": "http-server D:/project/images -p 8081 --silent",
     "dev:mp-wx:server": "concurrently \"pnpm dev:mp-wx\" \"pnpm serve-images\"",
     "dev": "uni",
     "dev:h5": "uni",

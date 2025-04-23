@@ -62,7 +62,7 @@ console.log(imgHeight.value, paddingTop.value, '测试')
           height: imgHeight,
         }"
         mode="aspectFill"
-        :src="`${STATIC_URL}/text.png`"
+        :src="`${STATIC_URL}/images/text.png`"
         alt=""
       />
       <view

@@ -538,7 +538,7 @@ defineExpose({
           <image
             mode="aspectFit"
             class="image"
-            :src="`${STATIC_URL}/camer.png`"
+            :src="`${STATIC_URL}/images/camer.png`"
           />
         </view>
       </view>
@@ -569,7 +569,7 @@ defineExpose({
         >
           <image
             class="loading image"
-            :src="`${STATIC_URL}/icons/loading.png`"
+            :src="`${STATIC_URL}/images/icons/loading.png`"
           />
         </view>
 
@@ -589,7 +589,7 @@ defineExpose({
         >
           <image
             class="error image"
-            :src="`${STATIC_URL}/icons/error.png`"
+            :src="`${STATIC_URL}/images/icons/error.png`"
           />
           <text
             class="text-mini "
@@ -619,7 +619,7 @@ defineExpose({
 
         <image
           v-if="!hideDelete && taskItem.status !== 'pending'"
-          :src="`${STATIC_URL}/close.png`"
+          :src="`${STATIC_URL}/images/close.png`"
           class="upload-image-item-del"
           alt=""
           @click.stop="handleDel(taskItem)"
