@@ -1,3 +1,4 @@
+/* eslint-disable node/prefer-global/process */
 export function rpxToPx(rpx: number) {
   const screenWidth = uni.getWindowInfo().screenWidth
   return (screenWidth * rpx) / 750
@@ -52,6 +53,10 @@ export const isIOS = platform?.toLocaleLowerCase() === 'ios'
 
 export const isDevtools = platform?.toLocaleLowerCase() === 'devtools'
 
-export const isWeb = uniPlatform?.toLocaleLowerCase() === 'web'
+export const isWeb = (uniPlatform || process.env.UNI_PLATFORM)?.toLocaleLowerCase() === 'web'
 
-export const isApp = uniPlatform?.toLocaleLowerCase() === 'app'
+export const isApp = (uniPlatform || process.env.UNI_PLATFORM)?.toLocaleLowerCase() === 'app'
+
+export const isWeixin = (uniPlatform || process.env.UNI_PLATFORM)?.toLocaleLowerCase() === 'mp-weixin'
+
+export const isH5 = (uniPlatform || process.env.UNI_PLATFORM)?.toLocaleLowerCase() === 'h5'

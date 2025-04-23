@@ -104,6 +104,11 @@ export default defineConfig(async ({ mode, command }) => {
       FILE_URL: `"${env.VITE_APP_FILE_URL}"`,
       CUSTOM_TOKEN: `"${env.VITE_APP_TOKEN}"`,
     },
+    server: {
+      host: '0.0.0.0',
+      open: false,
+      port: 8080,
+    },
   }
   return config
 })
