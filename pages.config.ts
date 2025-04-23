@@ -39,7 +39,6 @@ export default defineUniPages({
     autoscan: true,
     custom: {
       '^uni-(.*)': '@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue',
-      '^z-(.*)': '@zebra-ui/swiper/components/z-$1/z-$1.vue',
     },
   },
 

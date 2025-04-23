@@ -13,8 +13,7 @@
       "@dcloudio/types",
       "@uni-helper/uni-app-types",
       "@uni-helper/uni-ui-types",
-      "unplugin-icons/types/vue",
-      "@zebra-ui/swiper"
+      "unplugin-icons/types/vue"
     ],
     "allowJs": true,
     "noUnusedLocals": true,
