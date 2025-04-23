@@ -5,7 +5,7 @@ export default defineUniPages({
   // pages: [],
   globalStyle: {
     navigationBarTextStyle: 'black',
-    navigationBarTitleText: 'kechen',
+    navigationBarTitleText: 'shuke',
     navigationBarBackgroundColor: '#ffffff',
     backgroundColor: '#ffffff',
   },
