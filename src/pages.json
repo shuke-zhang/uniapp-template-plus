@@ -45,17 +45,6 @@
       }
     },
     {
-      "path": "pages/ai/deepseek",
-      "type": "page"
-    },
-    {
-      "path": "pages/ai/index",
-      "type": "page",
-      "style": {
-        "navigationBarTitleText": "AI对话"
-      }
-    },
-    {
       "path": "pages/auth/index",
       "type": "auth",
       "style": {
@@ -100,7 +89,7 @@
           "path": "test/index",
           "type": "page",
           "style": {
-            "navigationBarTitleText": "报告查看"
+            "navigationBarTitleText": "测试页面"
           }
         },
         {

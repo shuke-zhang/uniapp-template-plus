@@ -18,7 +18,6 @@ export default defineConfig(async ({ mode, command }) => {
 
   const plugins: UserConfig['plugins'] = [
     UniPages({
-      homePage: 'pages/ai/index', // app
       // homePage: 'pages/home/index',
       subPackages: ['src/feature/pages'],
       exclude: [

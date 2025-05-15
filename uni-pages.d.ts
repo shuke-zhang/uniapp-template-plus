@@ -5,8 +5,6 @@
 
 interface NavigateToOptions {
   url: "/pages/home/index" |
-       "/pages/ai/deepseek" |
-       "/pages/ai/index" |
        "/pages/auth/index" |
        "/pages/mine/index" |
        "/feature/pages/list-data-preview/detail" |

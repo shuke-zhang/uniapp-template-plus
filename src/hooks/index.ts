@@ -1,4 +1,3 @@
-export * from './useAi'
 export * from './useComputedRef'
 export * from './useContext'
 export * from './useDataDetail'
