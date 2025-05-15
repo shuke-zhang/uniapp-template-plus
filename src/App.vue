@@ -7,14 +7,20 @@ onShow(() => {
 onHide(() => {
   console.log('App Hide')
 })
-
+const whiteList = [
+  '/feature/pages/test/index',
+]
 const userStore = useUserStore()
 
 onLaunch(async () => {
   nextTick(async () => {
-    const t = getCurrentPages()
-    const pageName = t?.[t.length - 1]?.route || ''
+    const pages = getCurrentPages()
+    const pageName = pages?.[pages.length - 1]?.route || ''
+    console.log(pages, '当前页面:', pageName)
+
     if (pageName.includes('/pages/common/auth'))
+      return
+    if (whiteList.some(path => pageName.includes(path)))
       return
     if (getCacheToken()) {
       await userStore.getUserInfo()

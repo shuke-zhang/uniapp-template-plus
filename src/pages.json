@@ -100,7 +100,7 @@
           "path": "test/index",
           "type": "page",
           "style": {
-            "navigationBarTitleText": "测试页面"
+            "navigationBarTitleText": "报告查看"
           }
         },
         {

@@ -11,6 +11,7 @@ declare module 'vue' {
     ButtonGroupHolder: typeof import('./../components/button-group-holder/button-group-holder.vue')['default']
     ChatAppAndWeb: typeof import('./../components/gao-ChatSSEClient/children/ChatAppAndWeb.vue')['default']
     ChatWxApplet: typeof import('./../components/gao-ChatSSEClient/children/ChatWxApplet.vue')['default']
+    CircularProgress: typeof import('./../components/circular-progress/circular-progress.vue')['default']
     CommentInput: typeof import('./../components/comment-input/comment-input.vue')['default']
     Empty: typeof import('./../components/empty/empty.vue')['default']
     Form: typeof import('./../components/form/form.vue')['default']
