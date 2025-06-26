@@ -13,8 +13,6 @@ import { generatedIcons } from './scripts/iconfont'
 export default defineConfig(async ({ mode, command }) => {
   const env = loadEnv(mode, './')
   const isBuild = command === 'build'
-  const UnoCSS = (await import('unocss/vite')).default
-  console.log(UnoCSS, 'UnoCSS')
 
   const plugins: UserConfig['plugins'] = [
     UniPages({
@@ -66,7 +64,6 @@ export default defineConfig(async ({ mode, command }) => {
     Icons({
       compiler: 'vue3',
     }),
-    UnoCSS(),
 
   ]
   const config: UserConfig = {

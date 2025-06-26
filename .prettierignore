@@ -1,8 +1,0 @@
-# 忽略特定文件
-src/components/gao-ChatSSEClient/children/text.vue
-src/components/gao-ChatSSEClient/children/ChatAppAndWeb.vue
-
-# 通用忽略规则
-node_modules
-dist
-*.log

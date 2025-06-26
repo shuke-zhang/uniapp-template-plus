@@ -1,6 +1,5 @@
 import { createSSRApp } from 'vue'
 import App from './App.vue'
-import 'virtual:uno.css'
 import '@/styles/weapp-base.scss'
 import { registerStore } from './store'
 import { appGlobalProperties } from './app/app-global-properties'
