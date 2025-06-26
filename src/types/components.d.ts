@@ -9,7 +9,6 @@ declare module 'vue' {
   export interface GlobalComponents {
     BottomButtonGroup: typeof import('./../components/bottom-button-group/bottom-button-group.vue')['default']
     ButtonGroupHolder: typeof import('./../components/button-group-holder/button-group-holder.vue')['default']
-    ChatWxApplet: typeof import('./../components/gao-ChatSSEClient/children/ChatWxApplet.vue')['default']
     CircularProgress: typeof import('./../components/circular-progress/circular-progress.vue')['default']
     CommentInput: typeof import('./../components/comment-input/comment-input.vue')['default']
     Empty: typeof import('./../components/empty/empty.vue')['default']
@@ -28,7 +27,6 @@ declare module 'vue' {
     Radio: typeof import('./../components/radio/radio.vue')['default']
     SearchBar: typeof import('./../components/search-bar/search-bar.vue')['default']
     TabBar: typeof import('./../components/tab-bar/tab-bar.vue')['default']
-    Text: typeof import('./../components/gao-ChatSSEClient/children/text.vue')['default']
     UaMarkdown: typeof import('./../components/ua-markdown/ua-markdown.vue')['default']
   }
 }
