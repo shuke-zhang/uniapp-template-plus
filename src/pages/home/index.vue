@@ -1,8 +1,8 @@
-<!-- "style": { "navigationBarTitleText": "柯臣" ,"navigationStyle": "custom"} -->
+<!-- "style": { "navigationBarTitleText": "uniapp-template-plus" ,"navigationStyle": "custom"} -->
 <route  lang="json" type="home">
   {
 
-    "style": { "navigationBarTitleText": "柯臣" }
+    "style": { "navigationBarTitleText": "uniapp-template-plus" }
   }
 </route>
 

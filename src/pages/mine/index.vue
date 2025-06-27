@@ -1,6 +1,6 @@
 <route  lang="json" type="mine">
   {
-    "style": { "navigationBarTitleText": "柯臣" }
+    "style": { "navigationBarTitleText": "uniapp-template-plus" }
 
   }
 </route>

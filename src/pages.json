@@ -41,7 +41,7 @@
       "path": "pages/home/index",
       "type": "home",
       "style": {
-        "navigationBarTitleText": "柯臣"
+        "navigationBarTitleText": "uniapp-template-plus"
       }
     },
     {
@@ -56,7 +56,7 @@
       "path": "pages/mine/index",
       "type": "mine",
       "style": {
-        "navigationBarTitleText": "柯臣"
+        "navigationBarTitleText": "uniapp-template-plus"
       }
     }
   ],

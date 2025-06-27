@@ -111,6 +111,14 @@ onReady(() => {
       >
         登录
       </button>
+
+      <button
+        type="primary"
+        class="mt-[20rpx]"
+        @click="submit"
+      >
+        登录2
+      </button>
     </view>
   </view>
 </template>
