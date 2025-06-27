@@ -1,0 +1,239 @@
+page,
+body {
+  background-color: #f4f4f4;
+  height: 100%;
+}
+.container {
+  padding: 20rpx 32rpx;
+}
+
+.card {
+  border-radius: 24rpx;
+  background-color: #ffffff;
+  box-sizing: border-box;
+  position: relative;
+  padding-top: 40rpx;
+  padding-bottom: 40rpx;
+  padding-left: 40rpx;
+  padding-right: 40rpx;
+  overflow: hidden;
+
+  &.form-card {
+    padding: 0rpx;
+    padding-left: 40rpx;
+  }
+
+  .card-body {
+    &.grid {
+      display: grid;
+      grid-template-columns: 120rpx 1fr;
+      column-gap: 30rpx;
+      position: relative;
+    }
+  }
+
+  .card-action {
+    min-height: 48rpx;
+    border-top: 1px solid rgba(185, 183, 194, 0.5);
+    padding-top: 20rpx;
+  }
+
+  .card-seal {
+    position: absolute;
+    right: 40rpx;
+    top: 40rpx;
+  }
+}
+
+// 底部操作按钮组
+.button-group {
+  button {
+    height: 80rpx !important;
+    line-height: 80rpx !important;
+    border: none;
+    outline: none;
+    border-radius: 100rpx;
+    flex: 1;
+  }
+
+  &.compact,
+  &.compact > view:first-child {
+    button {
+      border-radius: 80rpx;
+    }
+
+    :first-child {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+      border-top-left-radius: 80rpx !important;
+      border-bottom-left-radius: 80rpx !important;
+    }
+
+    :last-child {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      border-top-right-radius: 80rpx !important;
+      border-bottom-right-radius: 80rpx !important;
+    }
+  }
+
+  &.compact > view:first-child {
+    flex: 1;
+    display: flex;
+  }
+}
+
+//** 列表 默认外边距
+.list-data-wrapper {
+  padding: 20rpx 32rpx 0;
+}
+
+// 默认 list-data-item 间距
+.list-data-item + .list-data-item {
+  margin-top: 20rpx;
+}
+
+.no-wrap {
+  white-space: nowrap;
+}
+.tag-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 4rpx 10rpx;
+  border-width: 2rpx;
+  border-style: solid;
+  border-radius: 8rpx;
+}
+@mixin text_overflow_($line) {
+  word-break: break-all; //在恰当的断字点进行换行
+  overflow: hidden; //文字超出的进行隐藏
+  text-overflow: ellipsis; //超出的文字用省略号表示
+  /* stylelint-disable-next-line value-no-vendor-prefix */
+  display: -webkit-box; //将元素设为盒子伸缩模型显示
+  -webkit-box-orient: vertical; //伸缩方向设为垂直方向
+  -webkit-line-clamp: $line; //设定一共3行，超出的部分隐藏，并用省略号来表示
+}
+
+.text-ellipsis {
+  @include text_overflow_(1);
+}
+
+.text-ellipsis-2 {
+  @include text_overflow_(2);
+}
+
+.text-ellipsis-3 {
+  @include text_overflow_(3);
+}
+
+// #reset 微信原生
+button[type='primary'] {
+  &,
+  &[loading] {
+    color: #ffffff;
+    background-image: linear-gradient(94deg, #49b9ad 4%, $uni-primary 98%);
+    background-color: transparent;
+    box-shadow: 0 24rpx 32rpx -15rpx rgba(73, 185, 173, 0.3);
+  }
+
+  &.button-hover {
+    color: #ffffff;
+    opacity: 0.7;
+  }
+}
+
+button[type='primary'].light,
+button[type='primary'][plain] {
+  &,
+  &[loading],
+  &[disabled] {
+    border-width: 1px;
+    border-style: solid;
+    border-color: $primary;
+    color: $primary;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+  }
+
+  &.button-hover {
+    border-color: $primary;
+    color: $primary;
+    background-color: transparent;
+  }
+}
+
+button[type='warn'] {
+  &,
+  &[loading] {
+    background-color: $yellow;
+    color: #ffffff;
+  }
+
+  &.button-hover {
+    background-color: rgba($yellow, 0.6);
+  }
+}
+
+button[type='warn'].light,
+button[type='warn'][plain] {
+  &,
+  &[loading],
+  &[disabled] {
+    border-width: 1px;
+    border-style: solid;
+    border-color: $yellow;
+    color: $yellow;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  &.button-hover {
+    background: transparent;
+    box-shadow: none;
+    border-color: rgba($yellow, 0.6);
+    color: rgba($yellow, 0.6);
+  }
+}
+
+button.success {
+  &,
+  &[loading] {
+    color: #ffffff !important;
+    background-color: $green !important;
+  }
+
+  &.button-hover {
+    background-color: rgba($green, 0.6);
+  }
+}
+
+button.success[plain],
+button.success.light {
+  &,
+  &[loading],
+  &[disabled] {
+    border-width: 1px;
+    border-style: solid;
+    border-color: $green !important;
+    color: $green !important;
+    background: transparent !important;
+    box-shadow: none;
+  }
+
+  &.button-hover {
+    background: transparent !important;
+    box-shadow: none;
+    border-color: rgba($green, 0.6) !important;
+    color: rgba($green, 0.6) !important;
+  }
+}
+button[disabled] {
+  opacity: 0.6;
+}
+
+button::after {
+  border: none;
+}

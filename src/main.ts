@@ -1,8 +1,9 @@
 import { createSSRApp } from 'vue'
 import App from './App.vue'
-import '@/styles/tailwindcss.css'
 import { registerStore } from './store'
 import { appGlobalProperties } from './app/app-global-properties'
+import '@/styles/tailwindcss.css'
+import '@/styles/weapp-base.scss'
 
 export function createApp() {
   const app = createSSRApp(App)
