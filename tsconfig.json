@@ -16,7 +16,7 @@
       "unplugin-icons/types/vue"
     ],
     "allowJs": true,
-    "noUnusedLocals": true,
+    // "noUnusedLocals": true,
     "sourceMap": true
   },
   "vueCompilerOptions": {

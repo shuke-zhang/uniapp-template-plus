@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 const router = useRouter()
+const res = 87
 function handleListDataPreview() {
   router.push('/feature/pages/list-data-preview/index')
 }
@@ -18,7 +19,7 @@ function handleTest() {
 </script>
 
 <template>
-  <view class="container">
+  <view class="container w-[100vw]">
     首页
 
     <button type="primary" @click="handleListDataPreview">
