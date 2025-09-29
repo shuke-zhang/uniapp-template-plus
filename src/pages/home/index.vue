@@ -14,7 +14,7 @@ function handleListDataPreview() {
 }
 
 function handleTest() {
-  router.push('/feature/pages/test/index')
+  router.push('/pages/test/index')
 }
 </script>
 

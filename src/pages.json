@@ -59,6 +59,13 @@
       "style": {
         "navigationBarTitleText": "uniapp-template-plus"
       }
+    },
+    {
+      "path": "pages/test/index",
+      "type": "page",
+      "style": {
+        "navigationBarTitleText": "uniapp-template-plus"
+      }
     }
   ],
   "subPackages": [
