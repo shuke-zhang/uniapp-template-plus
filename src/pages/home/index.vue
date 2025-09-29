@@ -8,7 +8,6 @@
 
 <script setup lang="ts">
 const router = useRouter()
-const res = 87
 function handleListDataPreview() {
   router.push('/feature/pages/list-data-preview/index')
 }
