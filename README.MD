@@ -1,5 +1,7 @@
 
 **在使用pnpm时，请注意node需使用 18.18.0 其他版本会出现预料之外的错误**
+**本项目采用pnpm 请`npm i -g pnpm`**
+**pnpm版本请尽量使用10.0.0版本以下。否则会出现ESM的报错**
 1. 采用 vscode 开发 
 2. `pnpm dev:mp-wx` 打开微信开发者工具导入 dist/dev/mp-weixin 即可运行微信小程序
 3. 使用页面插件`@uni-helper/vite-plugin-uni-pages`可直接配置页面路径，不需要在pages.json中统一配置 ===> https://uni-helper.js.org/vite-plugin-uni-pages
