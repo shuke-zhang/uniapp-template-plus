@@ -8,10 +8,7 @@ import { defineConfig, loadEnv } from 'vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import postcssPresetEnv from 'postcss-preset-env'
 import Icons from 'unplugin-icons/vite'
-import tailwindcssNesting from 'tailwindcss/nesting'
-import tailwindcss from 'tailwindcss'
-import uniTailwind from '@uni-helper/vite-plugin-uni-tailwind'
-import tailwindcssConfig from './tailwind.config.ts' // 注意匹配实际文件
+import UnoCSS from 'unocss/vite'
 import { generatedIcons } from './scripts/iconfont'
 
 export default defineConfig(async ({ mode, command }) => {
@@ -31,7 +28,6 @@ export default defineConfig(async ({ mode, command }) => {
       dts: 'src/types/components.d.ts',
     }),
     Uni(),
-    uniTailwind(),
     generatedIcons(isBuild),
     AutoImport({
       imports: [
@@ -69,7 +65,7 @@ export default defineConfig(async ({ mode, command }) => {
     Icons({
       compiler: 'vue3',
     }),
-
+    UnoCSS(),
   ]
   const config: UserConfig = {
     resolve: {
@@ -87,10 +83,6 @@ export default defineConfig(async ({ mode, command }) => {
       },
       postcss: {
         plugins: [
-          tailwindcssNesting(),
-          tailwindcss({
-            config: tailwindcssConfig,
-          }),
           postcssPresetEnv({
             stage: 3,
             features: { 'nesting-rules': false },

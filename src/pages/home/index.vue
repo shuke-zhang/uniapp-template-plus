@@ -18,7 +18,7 @@ function handleTest() {
 </script>
 
 <template>
-  <view class="container w-[100vw]">
+  <view class="container w-[100vw] ">
     首页
 
     <button type="primary" @click="handleListDataPreview">

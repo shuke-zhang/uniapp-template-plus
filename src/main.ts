@@ -4,6 +4,7 @@ import { registerStore } from './store'
 import { appGlobalProperties } from './app/app-global-properties'
 import '@/styles/tailwindcss.css'
 import '@/styles/weapp-base.scss'
+import 'uno.css'
 
 export function createApp() {
   const app = createSSRApp(App)

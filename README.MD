@@ -11,3 +11,9 @@
    >  unocss交互式文档，可直接搜索相关css简写 https://unocss.dev/interactive/ 
 5. iconfont 图标库需要加入项目请联系管理员 - https://www.iconfont.cn/manage/index?manage_type=myprojects&projectId=4837513
    > 更换icon图标库  - 进入在线项目点击 **下载至本地** 将下载的文件放置在 **scripts/__iconfont** 目录下即可
+
+
+2026年2月24日 
+   由于 **@uni-helper/vite-plugin-uni-tailwind** 已经正式废弃 https://github.com/uni-helper/vite-plugin-uni-tailwind?tab=readme-ov-file 
+   所以将css插件更新为 **unocss-preset-uni** - https://uni-helper.js.org/unocss-preset-uni
+   **需要在 main.ts 中插入代码 `import 'uno.css'`** 

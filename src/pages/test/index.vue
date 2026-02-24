@@ -19,7 +19,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <view>
+  <view class="w-full flex-center ">
     <view style="width:100vw;text-align: center; font-weight: bold; padding: 15px 0;">
       插件调试-测试是否
     </view>
@@ -29,6 +29,8 @@ onMounted(() => {
     <view style="padding: 15px 30px;">
       原始数据：{{ msg  || '---?' }}
     </view>
+
+	
   </view>
 </template>
 
