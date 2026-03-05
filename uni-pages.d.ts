@@ -6,8 +6,10 @@
 interface NavigateToOptions {
   url: "/pages/home/index" |
        "/pages/auth/index" |
+       "/pages/boke/index" |
        "/pages/mine/index" |
        "/pages/test/index" |
+       "/pages/test/duan/index" |
        "/feature/pages/list-data-preview/detail" |
        "/feature/pages/list-data-preview/index" |
        "/feature/pages/sub-test/index" |

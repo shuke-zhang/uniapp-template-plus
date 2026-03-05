@@ -15,6 +15,10 @@ function handleListDataPreview() {
 function handleTest() {
   router.push('/pages/test/index')
 }
+
+function handleDuan() {
+  router.push('/pages/test/duan/index')
+}
 </script>
 
 <template>
@@ -27,6 +31,10 @@ function handleTest() {
 
     <button type="primary" class="mt-40rpx" @click="handleTest">
       跳转测试页
+    </button>
+
+    <button type="primary" class="mt-40rpx" @click="handleDuan">
+      跳转端到端
     </button>
   </view>
 </template>

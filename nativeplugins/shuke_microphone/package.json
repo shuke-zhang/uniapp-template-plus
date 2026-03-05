@@ -1,0 +1,23 @@
+{
+  "name": "shuke_microphone",
+  "id": "shuke_microphone",
+  "version": "1.0.0",
+  "description": "音频输入通道",
+  "_dp_type": "nativeplugin",
+  "_dp_nativeplugin": {
+    "android": {
+      "plugins": [
+        {
+          "type": "module",
+          "name": "shuke_microphone",
+          "class": "com.example.shuke_microphone.AudioDeviceLister"
+        }
+      ],
+      "integrateType": "aar",
+      "parameters": {
+
+      },
+      "dependencies": []
+    }
+  }
+}

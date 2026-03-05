@@ -54,6 +54,13 @@
       }
     },
     {
+      "path": "pages/boke/index",
+      "type": "page",
+      "style": {
+        "navigationBarTitleText": "鎾 TTS 娴嬭瘯"
+      }
+    },
+    {
       "path": "pages/mine/index",
       "type": "mine",
       "style": {
@@ -64,7 +71,14 @@
       "path": "pages/test/index",
       "type": "page",
       "style": {
-        "navigationBarTitleText": "uniapp-template-plus"
+        "navigationBarTitleText": "播客 TTS 测试"
+      }
+    },
+    {
+      "path": "pages/test/duan/index",
+      "type": "page",
+      "style": {
+        "navigationBarTitleText": "Realtime Dialogue"
       }
     }
   ],

@@ -1,104 +1,166 @@
 {
-  "name": "舒克",
-  "appid": "__UNI__A909CE1",
-  "description": "",
-  "versionName": "1.0.0",
-  "versionCode": "100",
-  "transformPx": false,
-  /* 5+App特有相关 */
-  "app-plus": {
-    "usingComponents": true,
-    "nvueStyleCompiler": "uni-app",
-    "compilerVersion": 3,
-    "splashscreen": {
-      "alwaysShowBeforeRender": true,
-      "waiting": true,
-      "autoclose": true,
-      "delay": 0
-    },
-    "compatible": {
-      "ignoreVersion": true // true表示忽略版本检查提示框，HBuilderX1.9.0及以上版本支持
-    },
-    // ....
-    /* 模块配置 */
-    "modules": {},
-    /* 应用发布信息 */
-    "distribute": {
-      /* android打包配置 */
-      "android": {
-        "apkName": "舒克-${versionName}.apk", // 自定义文件名
-        "permissions": [
-          "<uses-permission android:name=\"android.permission.CHANGE_NETWORK_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.MOUNT_UNMOUNT_FILESYSTEMS\"/>",
-          "<uses-permission android:name=\"android.permission.VIBRATE\"/>",
-          "<uses-permission android:name=\"android.permission.READ_LOGS\"/>",
-          "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
-          "<uses-feature android:name=\"android.hardware.camera.autofocus\"/>",
-          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.CAMERA\"/>",
-          "<uses-permission android:name=\"android.permission.GET_ACCOUNTS\"/>",
-          "<uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
-          "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
-          "<uses-feature android:name=\"android.hardware.camera\"/>",
-          "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
-        ],
-        "autoSuffix": false // 关闭时间戳后缀
-      },
-      /* ios打包配置 */
-      "ios": {
-        "dSYMs": false
-      },
-      /* SDK配置 */
-      "sdkConfigs": {},
-      "splashscreen": {
-        "androidStyle": "default",
-        "android": {
-          "hdpi": "unpackage/res/icons/app-active-480.png",
-          "xhdpi": "unpackage/res/icons/app-active-720.png",
-          "xxhdpi": "unpackage/res/icons/app-active-1080.png"
-        }
-      },
-      "icons": {
-        "android": {
-          "hdpi": "unpackage/res/icons/app-icon.png",
-          "xhdpi": "unpackage/res/icons/app-icon.png",
-          "xxhdpi": "unpackage/res/icons/app-icon.png",
-          "xxxhdpi": "unpackage/res/icons/app-icon.png"
+    "name" : "舒克",
+    "appid" : "__UNI__A909CE1",
+    "description" : "",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    /* 5+App特有相关 */
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true,
+            "delay" : 0
         },
-        "ios": {
-          "appstore": "unpackage/res/icons/app-icon-1024.png"
+        "compatible" : {
+            "ignoreVersion" : true // true表示忽略版本检查提示框，HBuilderX1.9.0及以上版本支持
+        },
+        // ....
+        /* 模块配置 */
+        "modules" : {},
+        /* 应用发布信息 */
+        "distribute" : {
+            /* android打包配置 */
+            "android" : {
+                "apkName" : "舒克-${versionName}.apk", // 自定义文件名
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.CHANGE_NETWORK_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.MOUNT_UNMOUNT_FILESYSTEMS\"/>",
+                    "<uses-permission android:name=\"android.permission.VIBRATE\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_LOGS\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
+                    "<uses-feature android:name=\"android.hardware.camera.autofocus\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+                    "<uses-permission android:name=\"android.permission.GET_ACCOUNTS\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
+                    "<uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>",
+                    "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
+                    "<uses-feature android:name=\"android.hardware.camera\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
+                ],
+                "autoSuffix" : false // 关闭时间戳后缀
+            },
+            /* ios打包配置 */
+            "ios" : {
+                "dSYMs" : false,
+                "privacyDescription" : {
+                    "NSMicrophoneUsageDescription" : "语音对话需要使用麦克风采集音频。"
+                }
+            },
+            /* SDK配置 */
+            "sdkConfigs" : {},
+            "splashscreen" : {
+                "androidStyle" : "default",
+                "android" : {
+                    "hdpi" : "unpackage/res/icons/app-active-480.png",
+                    "xhdpi" : "unpackage/res/icons/app-active-720.png",
+                    "xxhdpi" : "unpackage/res/icons/app-active-1080.png"
+                }
+            },
+            "icons" : {
+                "android" : {
+                    "hdpi" : "unpackage/res/icons/app-icon.png",
+                    "xhdpi" : "unpackage/res/icons/app-icon.png",
+                    "xxhdpi" : "unpackage/res/icons/app-icon.png",
+                    "xxxhdpi" : "unpackage/res/icons/app-icon.png"
+                },
+                "ios" : {
+                    "appstore" : "unpackage/res/icons/app-icon-1024.png"
+                }
+            }
+        },
+        "nativePlugins" : {
+            "plugin_shuke" : {
+                "__plugin_info__" : {
+                    "name" : "plugin_shuke",
+                    "description" : "音频任务队列播放插件",
+                    "platforms" : "Android",
+                    "url" : "",
+                    "android_package_name" : "",
+                    "ios_bundle_id" : "",
+                    "isCloud" : false,
+                    "bought" : -1,
+                    "pid" : "",
+                    "parameters" : {}
+                }
+            },
+            "shuke_audio_play" : {
+                "__plugin_info__" : {
+                    "name" : "shuke_audio_play",
+                    "description" : "音频任务队列播放插件",
+                    "platforms" : "Android",
+                    "url" : "",
+                    "android_package_name" : "",
+                    "ios_bundle_id" : "",
+                    "isCloud" : false,
+                    "bought" : -1,
+                    "pid" : "",
+                    "parameters" : {}
+                }
+            },
+            "shuke_microphone" : {
+                "__plugin_info__" : {
+                    "name" : "shuke_microphone",
+                    "description" : "音频输入通道",
+                    "platforms" : "Android",
+                    "url" : "",
+                    "android_package_name" : "",
+                    "ios_bundle_id" : "",
+                    "isCloud" : false,
+                    "bought" : -1,
+                    "pid" : "",
+                    "parameters" : {}
+                }
+            },
+            "shuke_recorder" : {
+                "__plugin_info__" : {
+                    "name" : "shuke_recorder",
+                    "description" : "录音插件",
+                    "platforms" : "Android",
+                    "url" : "",
+                    "android_package_name" : "",
+                    "ios_bundle_id" : "",
+                    "isCloud" : false,
+                    "bought" : -1,
+                    "pid" : "",
+                    "parameters" : {}
+                }
+            }
         }
-      }
-    }
-  },
-  /* 快应用特有相关 */
-  "quickapp": {},
-  /* 小程序特有相关 */
-  "mp-weixin": {
-    "appid": "wx4753b10d02a4d067",
-    "setting": {
-      "urlCheck": false
     },
-    "usingComponents": true
-  },
-  "mp-alipay": {
-    "usingComponents": true
-  },
-  "mp-baidu": {
-    "usingComponents": true
-  },
-  "mp-toutiao": {
-    "usingComponents": true
-  },
-  "uniStatistics": {
-    "enable": false
-  },
-  "vueVersion": "3",
-  "h5": {
-    "router": {
-      "mode": "hash"
+    /* 快应用特有相关 */
+    "quickapp" : {},
+    /* 小程序特有相关 */
+    "mp-weixin" : {
+        "appid" : "wx4753b10d02a4d067",
+        "setting" : {
+            "urlCheck" : false
+        },
+        "usingComponents" : true
+    },
+    "mp-alipay" : {
+        "usingComponents" : true
+    },
+    "mp-baidu" : {
+        "usingComponents" : true
+    },
+    "mp-toutiao" : {
+        "usingComponents" : true
+    },
+    "uniStatistics" : {
+        "enable" : false
+    },
+    "vueVersion" : "3",
+    "h5" : {
+        "router" : {
+            "mode" : "hash"
+        }
     }
-  }
 }
