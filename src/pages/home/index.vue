@@ -33,8 +33,8 @@ function handleDuan() {
       跳转测试页
     </button>
 
-    <button type="primary" class="mt-40rpx" @click="handleDuan">
-      跳转端到端
+    <button type="primary" class="mt-80rpx" @click="handleDuan">
+      跳转端到端1
     </button>
   </view>
 </template>
