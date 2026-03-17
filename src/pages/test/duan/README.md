@@ -4,7 +4,9 @@
 
 ## 1. 业务目标
 
-页面文件：`src/pages/test/duan/index.vue`
+路由入口：`src/pages/test/duan/index.vue`
+
+核心页面：`src/pages/test/duan/core/RealtimeDialogPage.vue`
 
 该页面通过 WebSocket 二进制协议对接实时对话服务，支持三种输入模式：
 
@@ -21,10 +23,32 @@
 ## 2. 关键文件与职责
 
 - `src/pages/test/duan/index.vue`
-  - 页面状态管理
-  - 建链/发包/收包
-  - 三种输入模式控制
-  - 音频拼接与播放
+  - 页面路由入口
+  - 仅负责挂载 `core/RealtimeDialogPage.vue`
+
+- `src/pages/test/duan/core/RealtimeDialogPage.vue`
+  - 业务页面 UI
+  - 表单、聊天记录、日志面板绑定
+  - 不直接处理协议细节
+
+- `src/pages/test/duan/core/hooks/useRealtimeDialog.ts`
+  - 页面主状态机
+  - 建链、发包、收包、模式分发
+  - 串联录音与音频播放 hook
+
+- `src/pages/test/duan/core/hooks/useDialogRecorder.ts`
+  - 录音权限申请
+  - 录音后端选择（原生插件 / uni recorder）
+  - 实时 PCM 帧采集与上送
+
+- `src/pages/test/duan/core/hooks/useDialogAudioOutput.ts`
+  - 服务端音频分片缓存
+  - 音频拼接、播放地址生成、自动播放
+
+- `src/pages/test/duan/core/service/dialogProtocol.ts`
+  - 协议消息发送
+  - `StartSession` payload 组装
+  - socket 连接适配与握手 header
 
 - `src/pages/test/protocols.ts`
   - 协议消息编解码
@@ -33,6 +57,11 @@
 
 - `src/pages/test/duan/access.ts`
   - 鉴权配置（`DIALOG_APPID`、`DIALOG_ACCESS_TOKEN`、`DIALOG_APP_KEY` 等）
+
+- `src/pages/test/duan/core/config/dialog.ts`
+  - 页面默认配置
+  - Volcengine 事件码复用
+  - 音频、录音、日志等常量
 
 - `src/store/modules/socket/webSocket.ts`
   - 项目内 WebSocket 包装类（事件机制）
@@ -74,7 +103,7 @@ pnpm dev:mp-wx
 
 ## 4. 端到端时序（核心）
 
-以下流程由 `index.vue` 的 `connectDialog()` 驱动。
+以下流程由 `core/hooks/useRealtimeDialog.ts` 的 `connectDialog()` 驱动。
 
 1. 创建 socket 连接
 2. 发送 `StartConnection`
@@ -137,7 +166,7 @@ pnpm dev:mp-wx
 
 1. `pickAudioFile()` 选择本地音频
 2. `readFile` 读取为 `ArrayBuffer`
-3. 按固定分片（当前 3200 bytes）循环发送
+3. 按固定分片（当前 6400 bytes）循环发送
 4. 每片间隔短暂 sleep，避免发送过快
 5. 等待服务端文本与音频输出
 

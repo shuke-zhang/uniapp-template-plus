@@ -74,11 +74,22 @@
       }
     },
     {
+      "path": "pages/test/wxTest",
+      "type": "page",
+      "style": {
+        "navigationBarTitleText": "测试"
+      }
+    },
+    {
       "path": "pages/test/duan/index",
       "type": "page",
       "style": {
         "navigationBarTitleText": "Realtime Dialogue"
       }
+    },
+    {
+      "path": "pages/test/duan/core/pages/RealtimeDialogPage",
+      "type": "page"
     }
   ],
   "subPackages": [

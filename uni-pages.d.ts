@@ -9,7 +9,9 @@ interface NavigateToOptions {
        "/pages/boke/index" |
        "/pages/mine/index" |
        "/pages/test/index" |
+       "/pages/test/wxTest" |
        "/pages/test/duan/index" |
+       "/pages/test/duan/core/pages/RealtimeDialogPage" |
        "/feature/pages/list-data-preview/detail" |
        "/feature/pages/list-data-preview/index" |
        "/feature/pages/sub-test/index" |

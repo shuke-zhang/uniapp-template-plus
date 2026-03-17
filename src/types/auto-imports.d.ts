@@ -10,7 +10,6 @@ declare global {
   const EventEmitter: typeof import('../utils/helpers/EventEmitter')['EventEmitter']
   const Router: typeof import('../utils/router')['Router']
   const addPrefixUrl: typeof import('../utils/helpers/addPrefixUrl')['addPrefixUrl']
-  const appExtractStreamContent: typeof import('../hooks/useAi/index')['appExtractStreamContent']
   const bg: typeof import('../utils/helpers/logger')['bg']
   const clearCache: typeof import('../utils/cache/index')['clearCache']
   const cloneFnJSON: typeof import('../hooks/useVModel/index')['cloneFnJSON']
@@ -175,7 +174,6 @@ declare global {
   const triggerRef: typeof import('vue')['triggerRef']
   const unknownProp: typeof import('../utils/helpers/props')['unknownProp']
   const unref: typeof import('vue')['unref']
-  const useAi: typeof import('../hooks/useAi/index')['useAi']
   const useAttrs: typeof import('vue')['useAttrs']
   const useComputedRef: typeof import('../hooks/useComputedRef/index')['useComputedRef']
   const useContext: typeof import('../hooks/useContext/index')['useContext']
@@ -204,7 +202,6 @@ declare global {
   const watchEffect: typeof import('vue')['watchEffect']
   const watchPostEffect: typeof import('vue')['watchPostEffect']
   const watchSyncEffect: typeof import('vue')['watchSyncEffect']
-  const wxExtractStreamContent: typeof import('../hooks/useAi/index')['wxExtractStreamContent']
 }
 // for type re-export
 declare global {

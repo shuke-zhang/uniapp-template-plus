@@ -17,6 +17,10 @@ function handleTest() {
 }
 
 function handleDuan() {
+  router.push('/pages/test/wxTest')
+}
+
+function handleDuan2() {
   router.push('/pages/test/duan/index')
 }
 </script>
@@ -34,7 +38,11 @@ function handleDuan() {
     </button>
 
     <button type="primary" class="mt-80rpx" @click="handleDuan">
-      跳转端到端1
+      跳转端到端-双端
+    </button>
+
+    <button type="primary" class="mt-80rpx" @click="handleDuan2">
+      跳转端到端-分离
     </button>
   </view>
 </template>
