@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { speakerOptions } from '../boke/voice'
 import { APPID, AccessToken, SecretKey, sockBaseUrl, sockBaseUrlMpWx } from './access'
 import {
   EventType,
@@ -20,6 +21,7 @@ import {
   WaitForEvent,
 } from './protocols'
 import { WebSocket } from '@/store/modules/socket/webSocket'
+import { isApp, isWeixin } from '@/utils/helpers/system'
 
 interface PodcastRoundText {
   speaker: string
@@ -31,23 +33,30 @@ interface UniSocketCloseEvent {
   reason?: string
 }
 
-interface SpeakerOption {
+interface GenerateModeOption {
   label: string
-  value: string
+  value: 0 | 3 | 4
+  desc: string
 }
 
-const speakerOptions: SpeakerOption[] = [
-  { label: 'Black Cat Host', value: 'zh_female_mizaitongxue_v2_saturn_bigtts' },
-  { label: '大一先生', value: 'zh_male_dayixiansheng_v2_saturn_bigtts' },
-  { label: '刘飞', value: 'zh_male_liufei_v2_saturn_bigtts' },
-  { label: '小磊', value: 'zh_male_xiaolei_v2_saturn_bigtts' },
+interface PodcastNlpText {
+  speaker: string
+  text: string
+}
+
+const generateModeOptions: GenerateModeOption[] = [
+  { label: '摘要生成播客', value: 0, desc: '根据 input_text 总结生成播客' },
+  { label: '对话直出播客', value: 3, desc: '根据 nlp_texts 直接生成播客' },
+  { label: 'Prompt 联网播客', value: 4, desc: '根据 prompt_text 联网生成播客' },
 ]
 
-const inputText = ref('Hello, please create a short podcast intro.')
-const promptText = ref('')
+const inputText = ref('什么是脑机接口')
+const promptText = ref('医疗领域')
+const selectedGenerateModeIndex = ref(0)
+const nlpTextsInput = ref('[\n  {\n    "speaker": "嘉宾A",\n    "text": "今天我们聊聊怎么平衡工作和生活。"\n  },\n  {\n    "speaker": "嘉宾B",\n    "text": "我觉得先从管理精力开始，比管理时间更重要。"\n  }\n]')
 const selectedSpeakerIndex = ref(0)
 const selectedSpeakerIndex2 = ref(1)
-const useHeadMusic = ref(true)
+const useHeadMusic = ref(false)
 const useTailMusic = ref(false)
 const isLoading = ref(false)
 const statusText = ref('等待输入')
@@ -55,16 +64,20 @@ const errorText = ref('')
 const logs = ref<string[]>([])
 const audioSrc = ref('')
 const audioBytes = ref(0)
+const audioData = ref<Uint8Array | null>(null)
 const podcastTexts = ref<PodcastRoundText[]>([])
 const audioEl = ref<HTMLAudioElement | null>(null)
+const isDownloading = ref(false)
 
 let currentSocket: WebSocket | null = null
 let currentLogHandler: ((msg: string) => void) | null = null
+const selectedGenerateMode = computed(() => generateModeOptions[selectedGenerateModeIndex.value] ?? generateModeOptions[0])
 const selectedSpeaker = computed(() => speakerOptions[selectedSpeakerIndex.value] ?? speakerOptions[0])
 const selectedSpeaker2 = computed(() => speakerOptions[selectedSpeakerIndex2.value] ?? speakerOptions[1] ?? speakerOptions[0])
 
 /**
- * 鑾峰彇杩愯鏃跺叏灞€ Buffer锛堝瓨鍦ㄦ椂浼樺厛鐢ㄤ簬 UTF-8 缂栬В鐮侊級銆? */
+ * 鑾峰彇杩愯鏃跺叏灞€ Buffer锛堝瓨鍦ㄦ椂浼樺厛鐢ㄤ簬 UTF-8 缂栬В鐮侊級銆?
+ */
 function getRuntimeBuffer():
   | {
     from: (value: string, encoding?: string) => Uint8Array
@@ -81,7 +94,8 @@ function getRuntimeBuffer():
  * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * 缂栫爜绛栫暐锛? * - 浼樺厛浣跨敤杩愯鏃跺叏灞€ `Buffer.from(str, 'utf8')`
  * - 鏃?Buffer 鏃朵娇鐢ㄧ函 JS UTF-8 缂栫爜
  *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * @returns UTF-8 瀛楄妭鏁扮粍銆? */
+ * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * @returns UTF-8 瀛楄妭鏁扮粍銆?
+ */
 function encodeUtf8(value: string): Uint8Array {
   const runtimeBuffer = getRuntimeBuffer()
   if (runtimeBuffer) {
@@ -128,7 +142,8 @@ function encodeUtf8(value: string): Uint8Array {
 /**
  * 灏?UTF-8 瀛楄妭鏁扮粍瑙ｇ爜涓哄瓧绗︿覆锛堝吋瀹?App 鐜锛夈€? *
  * 瑙ｇ爜绛栫暐锛? * - 浣跨敤绾?JS UTF-8 瑙ｇ爜锛堥伩鍏嶄緷璧?`TextDecoder`锛? *
- * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€? * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€? */
+ * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€? * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€?
+ */
 function decodeUtf8(bytes: Uint8Array): string {
   let result = ''
   let i = 0
@@ -166,7 +181,8 @@ function decodeUtf8(bytes: Uint8Array): string {
 
 /**
  * 鍐欏叆椤甸潰鏃ュ織锛堜繚鐣欐渶杩?50 鏉★級銆? *
- * @param message - 鏃ュ織鏂囨湰銆? */
+ * @param message - 鏃ュ織鏂囨湰銆?
+ */
 function pushLog(message: string) {
   const line = `[${new Date().toLocaleTimeString()}] ${message}`
   logs.value = [line, ...logs.value].slice(0, 50)
@@ -174,7 +190,8 @@ function pushLog(message: string) {
 
 /**
  * 鐢熸垚杩炴帴/浼氳瘽浣跨敤鐨勫敮涓€ ID銆? *
- * @returns 绠€鍗?UUID 椋庢牸瀛楃涓层€? */
+ * @returns 绠€鍗?UUID 椋庢牸瀛楃涓层€?
+ */
 function genId(): string {
   const random = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1)
   return `${Date.now().toString(16)}-${random()}-${random()}-${random()}-${random()}${random()}`
@@ -182,14 +199,16 @@ function genId(): string {
 
 /**
  * 绛夊緟鎸囧畾姣鏁般€? *
- * @param ms - 姣鏁般€? * @returns Promise銆? */
+ * @param ms - 姣鏁般€? * @returns Promise銆?
+ */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
  * 鍚堝苟澶氭闊抽瀛楄妭銆? *
- * @param chunks - 闊抽鍒嗙墖鏁扮粍銆? * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆? */
+ * @param chunks - 闊抽鍒嗙墖鏁扮粍銆? * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆?
+ */
 function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, item) => sum + item.length, 0)
   const result = new Uint8Array(total)
@@ -201,9 +220,16 @@ function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return result
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copied = new Uint8Array(bytes.byteLength)
+  copied.set(bytes)
+  return copied.buffer
+}
+
 /**
  * 灏嗕簩杩涘埗闊抽杞崲涓哄彲鎾斁鍦板潃锛堜紭鍏堜娇鐢?Blob URL锛夈€? *
- * @param bytes - 闊抽瀛楄妭銆? * @param format - 闊抽鏍煎紡锛屽 `mp3`銆? * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆? */
+ * @param bytes - 闊抽瀛楄妭銆? * @param format - 闊抽鏍煎紡锛屽 `mp3`銆? * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆?
+ */
 function buildAudioUrl(bytes: Uint8Array, format: string): string {
   const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
 
@@ -257,12 +283,152 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
 
 /**
  * 閲婃斁鏃х殑 Blob URL锛岄伩鍏嶉噸澶嶇敓鎴愬悗鍗犵敤鍐呭瓨銆? *
- * @param url - 鏃х殑闊抽鍦板潃銆? */
+ * @param url - 鏃х殑闊抽鍦板潃銆?
+ */
 function revokeAudioUrl(url: string) {
   if (!url)
     return
   if (typeof URL !== 'undefined' && url.startsWith('blob:')) {
     URL.revokeObjectURL(url)
+  }
+}
+
+function getAudioFileName() {
+  return `podcast_${Date.now()}.mp3`
+}
+
+function parseNlpTextsInput(value: string): PodcastNlpText[] {
+  const trimmed = value.trim()
+  if (!trimmed)
+    return []
+
+  const parsed = JSON.parse(trimmed)
+  if (!Array.isArray(parsed)) {
+    throw new TypeError('nlp_texts 必须是数组')
+  }
+
+  return parsed.map((item, index) => {
+    const speaker = String(item?.speaker ?? '').trim()
+    const text = String(item?.text ?? '').trim()
+    if (!speaker || !text) {
+      throw new TypeError(`nlp_texts 第 ${index + 1} 项缺少 speaker 或 text`)
+    }
+    return { speaker, text }
+  })
+}
+
+function getLocalAudioDirectory() {
+  if (isApp && typeof plus !== 'undefined') {
+    return `${plus.io.convertLocalFileSystemURL('_doc/')}/`
+  }
+
+  if (isWeixin) {
+    const wxAny = globalThis as unknown as {
+      wx?: {
+        env?: {
+          USER_DATA_PATH?: string
+        }
+      }
+    }
+    return wxAny.wx?.env?.USER_DATA_PATH || ''
+  }
+
+  return ''
+}
+
+function saveBlobAudio(bytes: Uint8Array) {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') {
+    throw new TypeError('当前环境不支持浏览器下载')
+  }
+
+  const link = document.createElement('a')
+  const objectUrl = URL.createObjectURL(new Blob([toArrayBuffer(bytes)], { type: 'audio/mpeg' }))
+  link.href = objectUrl
+  link.download = getAudioFileName()
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
+function writeAudioToLocalFile(bytes: Uint8Array) {
+  const uniAny = uni as unknown as {
+    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
+    getFileSystemManager?: () => {
+      writeFileSync?: (filePath: string, data: string, encoding?: string) => void
+    }
+    saveFile?: (options: {
+      tempFilePath: string
+      success?: (res: { savedFilePath: string }) => void
+      fail?: (err: unknown) => void
+    }) => void
+  }
+
+  if (typeof uniAny.arrayBufferToBase64 !== 'function' || typeof uniAny.getFileSystemManager !== 'function') {
+    throw new TypeError('当前环境不支持写入本地音频文件')
+  }
+
+  const fs = uniAny.getFileSystemManager()
+  const baseDir = getLocalAudioDirectory()
+  if (!baseDir || typeof fs?.writeFileSync !== 'function') {
+    throw new Error('当前环境缺少可写目录')
+  }
+
+  const tempFilePath = `${baseDir}/${getAudioFileName()}`
+  const base64 = uniAny.arrayBufferToBase64(toArrayBuffer(bytes))
+  fs.writeFileSync(tempFilePath, base64, 'base64')
+
+  return new Promise<string>((resolve, reject) => {
+    if (typeof uniAny.saveFile !== 'function') {
+      resolve(tempFilePath)
+      return
+    }
+
+    uniAny.saveFile({
+      tempFilePath,
+      success: res => resolve(res.savedFilePath || tempFilePath),
+      fail: err => reject(err),
+    })
+  })
+}
+
+async function downloadAudio() {
+  if (!audioData.value?.length) {
+    uni.showToast({
+      title: '请先生成音频',
+      icon: 'none',
+    })
+    return
+  }
+
+  isDownloading.value = true
+  try {
+    if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+      saveBlobAudio(audioData.value)
+      pushLog('已触发浏览器音频下载')
+      uni.showToast({
+        title: '开始下载',
+        icon: 'success',
+      })
+      return
+    }
+
+    const savedFilePath = await writeAudioToLocalFile(audioData.value)
+    pushLog(`音频已保存: ${savedFilePath}`)
+    uni.showModal({
+      title: '下载完成',
+      content: `音频已保存到：${savedFilePath}`,
+      showCancel: false,
+    })
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    pushLog(`下载失败: ${message}`)
+    uni.showToast({
+      title: '下载失败',
+      icon: 'none',
+    })
+  }
+  finally {
+    isDownloading.value = false
   }
 }
 
@@ -272,7 +438,8 @@ function revokeAudioUrl(url: string) {
  * - 椤甸潰鑷閫氳繃 `uni.connectSocket` 浼犲叆閴存潈 header
  * - 灏嗗簳灞?`SocketTask` 鎸傚埌瀹炰緥鐨?`socketInstance` 涓? * - 鍙浆鍙?`open/close/error` 浜嬩欢缁欏崗璁眰锛涘師濮嬫秷鎭敱鍗忚灞傜洿鎺ョ洃鍚?`socketInstance.onMessage`
  *
- * @param headers - 杩炴帴璇锋眰澶淬€? * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆? */
+ * @param headers - 杩炴帴璇锋眰澶淬€? * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆?
+ */
 function resolveSocketEndpoint(runtimeInfo?: Record<string, any>) {
   const info = runtimeInfo ?? (uni.getSystemInfoSync() as Record<string, any>)
   const uniPlatform = String(info?.uniPlatform || info?.platform || '').toLowerCase()
@@ -365,7 +532,8 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
 }
 
 /**
- * 鍏抽棴褰撳墠 socket锛堝瀛樺湪锛夈€? */
+ * 鍏抽棴褰撳墠 socket锛堝瀛樺湪锛夈€?
+ */
 function closeCurrentSocket() {
   if (!currentSocket)
     return
@@ -390,19 +558,23 @@ function closeCurrentSocket() {
 
 /**
  * 鏍规嵁椤甸潰杈撳叆鏋勫缓鎾 TTS 璇锋眰鍙傛暟銆? *
- * @returns 璇锋眰瀵硅薄锛堜細鍦ㄥ彂閫佸墠琚?JSON.stringify锛夈€? */
+ * @returns 璇锋眰瀵硅薄锛堜細鍦ㄥ彂閫佸墠琚?JSON.stringify锛夈€?
+ */
 function buildRequestParams() {
+  const action = selectedGenerateMode.value.value
+  const nlpTexts = action === 3 ? parseNlpTextsInput(nlpTextsInput.value) : []
+
   return {
     input_id: `podcast_${Date.now()}`,
-    input_text: inputText.value.trim(),
-    prompt_text: promptText.value.trim(),
-    action: 0,
+    input_text: action === 4 ? '' : inputText.value.trim(),
+    prompt_text: action === 4 ? promptText.value.trim() : '',
+    action,
     speaker_info: {
       random_order: false,
-      // 鎾妯″紡瑕佹眰浼?2 涓彂闊充汉
+      // 发音人
       speakers: [selectedSpeaker.value.value, selectedSpeaker2.value.value],
     },
-    nlp_texts: [],
+    nlp_texts: nlpTexts,
     use_head_music: useHeadMusic.value,
     use_tail_music: useTailMusic.value,
     input_info: {
@@ -420,7 +592,8 @@ function buildRequestParams() {
 
 /**
  * 澶勭悊鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆? */
+ * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ */
 function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
   if (!Number.isNaN(index) && index >= 0 && index < speakerOptions.length) {
@@ -430,7 +603,8 @@ function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
 
 /**
  * 澶勭悊绗簩鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆? */
+ * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ */
 function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
   if (!Number.isNaN(index) && index >= 0 && index < speakerOptions.length) {
@@ -438,13 +612,39 @@ function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   }
 }
 
+function handleGenerateModeChange(event: { detail?: { value?: string | number } }) {
+  const index = Number(event?.detail?.value)
+  if (!Number.isNaN(index) && index >= 0 && index < generateModeOptions.length) {
+    selectedGenerateModeIndex.value = index
+  }
+}
+
 /**
- * 鐢熸垚鎾闊抽骞惰嚜鍔ㄦ挱鏀俱€? */
+ * 鐢熸垚鎾闊抽骞惰嚜鍔ㄦ挱鏀俱€?
+ */
 async function generatePodcast() {
+  const action = selectedGenerateMode.value.value
   const text = inputText.value.trim()
-  if (!text) {
-    errorText.value = 'Please enter text to generate'
+  const prompt = promptText.value.trim()
+
+  if ((action === 0 || action === 3) && !text) {
+    errorText.value = '请输入 input_text'
     return
+  }
+
+  if (action === 4 && !prompt) {
+    errorText.value = 'action = 4 时请填写 prompt_text'
+    return
+  }
+
+  if (action === 3) {
+    try {
+      parseNlpTextsInput(nlpTextsInput.value)
+    }
+    catch (error) {
+      errorText.value = error instanceof Error ? error.message : String(error)
+      return
+    }
   }
 
   if (!APPID || !AccessToken || !SecretKey) {
@@ -460,6 +660,7 @@ async function generatePodcast() {
   revokeAudioUrl(audioSrc.value)
   audioSrc.value = ''
   audioBytes.value = 0
+  audioData.value = null
   podcastTexts.value = []
   errorText.value = ''
   logs.value = []
@@ -573,6 +774,7 @@ async function generatePodcast() {
     }
 
     const merged = concatUint8Arrays(audioChunks)
+    audioData.value = merged
     audioBytes.value = merged.length
     audioSrc.value = buildAudioUrl(merged, 'mp3')
     statusText.value = 'Generation complete, preparing playback'
@@ -646,6 +848,34 @@ onBeforeUnmount(() => {
 
       <view class="form-block compact">
         <view class="field-label">
+          生成方式
+        </view>
+        <picker
+          mode="selector"
+          :range="generateModeOptions"
+          range-key="label"
+          :value="selectedGenerateModeIndex"
+          :disabled="isLoading"
+          @change="handleGenerateModeChange"
+        >
+          <view class="selector-box">
+            <view class="selector-main">
+              <view class="selector-title">
+                {{ selectedGenerateMode.label }}
+              </view>
+              <view class="selector-sub">
+                action={{ selectedGenerateMode.value }} · {{ selectedGenerateMode.desc }}
+              </view>
+            </view>
+            <view class="selector-arrow">
+              切换
+            </view>
+          </view>
+        </picker>
+      </view>
+
+      <view class="form-block compact">
+        <view class="field-label">
           Prompt（可选）
         </view>
         <input
@@ -654,6 +884,19 @@ onBeforeUnmount(() => {
           placeholder="optional"
           :disabled="isLoading"
         >
+      </view>
+
+      <view v-if="selectedGenerateMode.value === 3" class="form-block">
+        <view class="field-label">
+          nlp_texts（JSON）
+        </view>
+        <textarea
+          v-model="nlpTextsInput"
+          class="text-input nlp-input"
+          :maxlength="-1"
+          placeholder="请输入 nlp_texts JSON 数组"
+          :disabled="isLoading"
+        />
       </view>
 
       <view class="form-block compact">
@@ -761,7 +1004,7 @@ onBeforeUnmount(() => {
           :disabled="isLoading"
           @click="generatePodcast"
         >
-          {{ isLoading ? 'Generating...' : 'Generate and Play' }}
+          {{ isLoading ? '生成中...' : '生成并播放' }}
         </button>
         <view class="meta-info">
           <text>发音人 1：{{ selectedSpeaker.label }}</text>
@@ -780,6 +1023,13 @@ onBeforeUnmount(() => {
       <view class="section-title">
         音频结果
       </view>
+      <button
+        class="download-btn"
+        :disabled="!audioSrc || isDownloading"
+        @click="downloadAudio"
+      >
+        {{ isDownloading ? '下载中...' : '下载音频' }}
+      </button>
       <audio
         ref="audioEl"
         class="audio-player"
@@ -931,6 +1181,11 @@ onBeforeUnmount(() => {
   line-height: 1.55;
 }
 
+.nlp-input {
+  min-height: 220rpx;
+  font-family: Consolas, 'Courier New', monospace;
+}
+
 .mini-input {
   width: 100%;
   height: 84rpx;
@@ -1067,6 +1322,14 @@ onBeforeUnmount(() => {
   min-height: 72rpx;
 }
 
+.download-btn {
+  margin-bottom: 16rpx;
+  border-radius: 18rpx;
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+
 .empty-tip {
   margin-top: 10rpx;
   font-size: 22rpx;
@@ -1140,5 +1403,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
-

@@ -1,13 +1,14 @@
 ﻿<route lang="json" type="page">
 {
   "style": {
-    "navigationBarTitleText": "鎾 TTS 娴嬭瘯"
+    "navigationBarTitleText": "播客 TTS 测试"
   }
 }
 </route>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { speakerOptions } from '../boke/voice'
 import { APPID, AccessToken, SecretKey, sockBaseUrl, sockBaseUrlMpWx } from './access'
 import {
   EventType,
@@ -20,6 +21,7 @@ import {
   WaitForEvent,
 } from './protocols'
 import { WebSocket } from '@/store/modules/socket/webSocket'
+import { isApp, isWeixin } from '@/utils/helpers/system'
 
 interface PodcastRoundText {
   speaker: string
@@ -31,35 +33,45 @@ interface UniSocketCloseEvent {
   reason?: string
 }
 
-interface SpeakerOption {
+interface GenerateModeOption {
   label: string
-  value: string
+  value: 0 | 3 | 4
+  desc: string
 }
 
-const speakerOptions: SpeakerOption[] = [
-  { label: 'Black Cat Host', value: 'zh_female_mizaitongxue_v2_saturn_bigtts' },
-  { label: '澶т竴鍏堢敓', value: 'zh_male_dayixiansheng_v2_saturn_bigtts' },
-  { label: '鍒橀', value: 'zh_male_liufei_v2_saturn_bigtts' },
-  { label: '灏忕', value: 'zh_male_xiaolei_v2_saturn_bigtts' },
+interface PodcastNlpText {
+  speaker: string
+  text: string
+}
+
+const generateModeOptions: GenerateModeOption[] = [
+  { label: '摘要生成播客', value: 0, desc: '根据 input_text 总结生成播客' },
+  { label: '对话直出播客', value: 3, desc: '根据 nlp_texts 直接生成播客' },
+  { label: 'Prompt 联网播客', value: 4, desc: '根据 prompt_text 联网生成播客' },
 ]
 
-const inputText = ref('Hello, please create a short podcast intro.')
-const promptText = ref('')
+const inputText = ref('什么是脑机接口')
+const promptText = ref('医疗领域')
+const selectedGenerateModeIndex = ref(0)
+const nlpTextsInput = ref('[\n  {\n    "speaker": "嘉宾A",\n    "text": "今天我们聊聊怎么平衡工作和生活。"\n  },\n  {\n    "speaker": "嘉宾B",\n    "text": "我觉得先从管理精力开始，比管理时间更重要。"\n  }\n]')
 const selectedSpeakerIndex = ref(0)
 const selectedSpeakerIndex2 = ref(1)
-const useHeadMusic = ref(true)
+const useHeadMusic = ref(false)
 const useTailMusic = ref(false)
 const isLoading = ref(false)
-const statusText = ref('绛夊緟杈撳叆')
+const statusText = ref('等待输入')
 const errorText = ref('')
 const logs = ref<string[]>([])
 const audioSrc = ref('')
 const audioBytes = ref(0)
+const audioData = ref<Uint8Array | null>(null)
 const podcastTexts = ref<PodcastRoundText[]>([])
 const audioEl = ref<HTMLAudioElement | null>(null)
+const isDownloading = ref(false)
 
 let currentSocket: WebSocket | null = null
 let currentLogHandler: ((msg: string) => void) | null = null
+const selectedGenerateMode = computed(() => generateModeOptions[selectedGenerateModeIndex.value] ?? generateModeOptions[0])
 const selectedSpeaker = computed(() => speakerOptions[selectedSpeakerIndex.value] ?? speakerOptions[0])
 const selectedSpeaker2 = computed(() => speakerOptions[selectedSpeakerIndex2.value] ?? speakerOptions[1] ?? speakerOptions[0])
 
@@ -78,15 +90,11 @@ function getRuntimeBuffer():
 }
 
 /**
- * 灏嗗瓧绗︿覆缂栫爜涓?UTF-8 瀛楄妭鏁扮粍锛堝吋瀹?App 鐜锛夈€?
- *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆?
- * 缂栫爜绛栫暐锛?
- * - 浼樺厛浣跨敤杩愯鏃跺叏灞€ `Buffer.from(str, 'utf8')`
+ * 灏嗗瓧绗︿覆缂栫爜涓?UTF-8 瀛楄妭鏁扮粍锛堝吋瀹?App 鐜锛夈€? *
+ * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * 缂栫爜绛栫暐锛? * - 浼樺厛浣跨敤杩愯鏃跺叏灞€ `Buffer.from(str, 'utf8')`
  * - 鏃?Buffer 鏃朵娇鐢ㄧ函 JS UTF-8 缂栫爜
  *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆?
- * @returns UTF-8 瀛楄妭鏁扮粍銆?
+ * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * @returns UTF-8 瀛楄妭鏁扮粍銆?
  */
 function encodeUtf8(value: string): Uint8Array {
   const runtimeBuffer = getRuntimeBuffer()
@@ -132,13 +140,9 @@ function encodeUtf8(value: string): Uint8Array {
 }
 
 /**
- * 灏?UTF-8 瀛楄妭鏁扮粍瑙ｇ爜涓哄瓧绗︿覆锛堝吋瀹?App 鐜锛夈€?
- *
- * 瑙ｇ爜绛栫暐锛?
- * - 浣跨敤绾?JS UTF-8 瑙ｇ爜锛堥伩鍏嶄緷璧?`TextDecoder`锛?
- *
- * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€?
- * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€?
+ * 灏?UTF-8 瀛楄妭鏁扮粍瑙ｇ爜涓哄瓧绗︿覆锛堝吋瀹?App 鐜锛夈€? *
+ * 瑙ｇ爜绛栫暐锛? * - 浣跨敤绾?JS UTF-8 瑙ｇ爜锛堥伩鍏嶄緷璧?`TextDecoder`锛? *
+ * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€? * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€?
  */
 function decodeUtf8(bytes: Uint8Array): string {
   let result = ''
@@ -176,8 +180,7 @@ function decodeUtf8(bytes: Uint8Array): string {
 }
 
 /**
- * 鍐欏叆椤甸潰鏃ュ織锛堜繚鐣欐渶杩?50 鏉★級銆?
- *
+ * 鍐欏叆椤甸潰鏃ュ織锛堜繚鐣欐渶杩?50 鏉★級銆? *
  * @param message - 鏃ュ織鏂囨湰銆?
  */
 function pushLog(message: string) {
@@ -186,8 +189,7 @@ function pushLog(message: string) {
 }
 
 /**
- * 鐢熸垚杩炴帴/浼氳瘽浣跨敤鐨勫敮涓€ ID銆?
- *
+ * 鐢熸垚杩炴帴/浼氳瘽浣跨敤鐨勫敮涓€ ID銆? *
  * @returns 绠€鍗?UUID 椋庢牸瀛楃涓层€?
  */
 function genId(): string {
@@ -196,20 +198,16 @@ function genId(): string {
 }
 
 /**
- * 绛夊緟鎸囧畾姣鏁般€?
- *
- * @param ms - 姣鏁般€?
- * @returns Promise銆?
+ * 绛夊緟鎸囧畾姣鏁般€? *
+ * @param ms - 姣鏁般€? * @returns Promise銆?
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
- * 鍚堝苟澶氭闊抽瀛楄妭銆?
- *
- * @param chunks - 闊抽鍒嗙墖鏁扮粍銆?
- * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆?
+ * 鍚堝苟澶氭闊抽瀛楄妭銆? *
+ * @param chunks - 闊抽鍒嗙墖鏁扮粍銆? * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆?
  */
 function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, item) => sum + item.length, 0)
@@ -222,12 +220,15 @@ function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return result
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copied = new Uint8Array(bytes.byteLength)
+  copied.set(bytes)
+  return copied.buffer
+}
+
 /**
- * 灏嗕簩杩涘埗闊抽杞崲涓哄彲鎾斁鍦板潃锛堜紭鍏堜娇鐢?Blob URL锛夈€?
- *
- * @param bytes - 闊抽瀛楄妭銆?
- * @param format - 闊抽鏍煎紡锛屽 `mp3`銆?
- * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆?
+ * 灏嗕簩杩涘埗闊抽杞崲涓哄彲鎾斁鍦板潃锛堜紭鍏堜娇鐢?Blob URL锛夈€? *
+ * @param bytes - 闊抽瀛楄妭銆? * @param format - 闊抽鏍煎紡锛屽 `mp3`銆? * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆?
  */
 function buildAudioUrl(bytes: Uint8Array, format: string): string {
   const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
@@ -277,12 +278,11 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
     return `data:${mime};base64,${base64}`
   }
 
-  throw new Error('褰撳墠鐜涓嶆敮鎸佺敓鎴愰煶棰戞挱鏀惧湴鍧€')
+  throw new Error('当前环境不支持生成音频播放地址')
 }
 
 /**
- * 閲婃斁鏃х殑 Blob URL锛岄伩鍏嶉噸澶嶇敓鎴愬悗鍗犵敤鍐呭瓨銆?
- *
+ * 閲婃斁鏃х殑 Blob URL锛岄伩鍏嶉噸澶嶇敓鎴愬悗鍗犵敤鍐呭瓨銆? *
  * @param url - 鏃х殑闊抽鍦板潃銆?
  */
 function revokeAudioUrl(url: string) {
@@ -293,17 +293,152 @@ function revokeAudioUrl(url: string) {
   }
 }
 
+function getAudioFileName() {
+  return `podcast_${Date.now()}.mp3`
+}
+
+function parseNlpTextsInput(value: string): PodcastNlpText[] {
+  const trimmed = value.trim()
+  if (!trimmed)
+    return []
+
+  const parsed = JSON.parse(trimmed)
+  if (!Array.isArray(parsed)) {
+    throw new TypeError('nlp_texts 必须是数组')
+  }
+
+  return parsed.map((item, index) => {
+    const speaker = String(item?.speaker ?? '').trim()
+    const text = String(item?.text ?? '').trim()
+    if (!speaker || !text) {
+      throw new TypeError(`nlp_texts 第 ${index + 1} 项缺少 speaker 或 text`)
+    }
+    return { speaker, text }
+  })
+}
+
+function getLocalAudioDirectory() {
+  if (isApp && typeof plus !== 'undefined') {
+    return `${plus.io.convertLocalFileSystemURL('_doc/')}/`
+  }
+
+  if (isWeixin) {
+    const wxAny = globalThis as unknown as {
+      wx?: {
+        env?: {
+          USER_DATA_PATH?: string
+        }
+      }
+    }
+    return wxAny.wx?.env?.USER_DATA_PATH || ''
+  }
+
+  return ''
+}
+
+function saveBlobAudio(bytes: Uint8Array) {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') {
+    throw new TypeError('当前环境不支持浏览器下载')
+  }
+
+  const link = document.createElement('a')
+  const objectUrl = URL.createObjectURL(new Blob([toArrayBuffer(bytes)], { type: 'audio/mpeg' }))
+  link.href = objectUrl
+  link.download = getAudioFileName()
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
+function writeAudioToLocalFile(bytes: Uint8Array) {
+  const uniAny = uni as unknown as {
+    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
+    getFileSystemManager?: () => {
+      writeFileSync?: (filePath: string, data: string, encoding?: string) => void
+    }
+    saveFile?: (options: {
+      tempFilePath: string
+      success?: (res: { savedFilePath: string }) => void
+      fail?: (err: unknown) => void
+    }) => void
+  }
+
+  if (typeof uniAny.arrayBufferToBase64 !== 'function' || typeof uniAny.getFileSystemManager !== 'function') {
+    throw new TypeError('当前环境不支持写入本地音频文件')
+  }
+
+  const fs = uniAny.getFileSystemManager()
+  const baseDir = getLocalAudioDirectory()
+  if (!baseDir || typeof fs?.writeFileSync !== 'function') {
+    throw new Error('当前环境缺少可写目录')
+  }
+
+  const tempFilePath = `${baseDir}/${getAudioFileName()}`
+  const base64 = uniAny.arrayBufferToBase64(toArrayBuffer(bytes))
+  fs.writeFileSync(tempFilePath, base64, 'base64')
+
+  return new Promise<string>((resolve, reject) => {
+    if (typeof uniAny.saveFile !== 'function') {
+      resolve(tempFilePath)
+      return
+    }
+
+    uniAny.saveFile({
+      tempFilePath,
+      success: res => resolve(res.savedFilePath || tempFilePath),
+      fail: err => reject(err),
+    })
+  })
+}
+
+async function downloadAudio() {
+  if (!audioData.value?.length) {
+    uni.showToast({
+      title: '请先生成音频',
+      icon: 'none',
+    })
+    return
+  }
+
+  isDownloading.value = true
+  try {
+    if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+      saveBlobAudio(audioData.value)
+      pushLog('已触发浏览器音频下载')
+      uni.showToast({
+        title: '开始下载',
+        icon: 'success',
+      })
+      return
+    }
+
+    const savedFilePath = await writeAudioToLocalFile(audioData.value)
+    pushLog(`音频已保存: ${savedFilePath}`)
+    uni.showModal({
+      title: '下载完成',
+      content: `音频已保存到：${savedFilePath}`,
+      showCancel: false,
+    })
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    pushLog(`下载失败: ${message}`)
+    uni.showToast({
+      title: '下载失败',
+      icon: 'none',
+    })
+  }
+  finally {
+    isDownloading.value = false
+  }
+}
+
 /**
- * 鍦ㄤ笉淇敼 `WebSocket` 绫绘枃浠剁殑鍓嶆彁涓嬶紝鍒涘缓鍙緵鍗忚灞備娇鐢ㄧ殑杩炴帴瀹炰緥銆?
- *
- * 鍋氭硶锛?
- * - 瀹炰緥浠嶇劧浣跨敤 `new WebSocket(...)`
+ * 鍦ㄤ笉淇敼 `WebSocket` 绫绘枃浠剁殑鍓嶆彁涓嬶紝鍒涘缓鍙緵鍗忚灞備娇鐢ㄧ殑杩炴帴瀹炰緥銆? *
+ * 鍋氭硶锛? * - 瀹炰緥浠嶇劧浣跨敤 `new WebSocket(...)`
  * - 椤甸潰鑷閫氳繃 `uni.connectSocket` 浼犲叆閴存潈 header
- * - 灏嗗簳灞?`SocketTask` 鎸傚埌瀹炰緥鐨?`socketInstance` 涓?
- * - 鍙浆鍙?`open/close/error` 浜嬩欢缁欏崗璁眰锛涘師濮嬫秷鎭敱鍗忚灞傜洿鎺ョ洃鍚?`socketInstance.onMessage`
+ * - 灏嗗簳灞?`SocketTask` 鎸傚埌瀹炰緥鐨?`socketInstance` 涓? * - 鍙浆鍙?`open/close/error` 浜嬩欢缁欏崗璁眰锛涘師濮嬫秷鎭敱鍗忚灞傜洿鎺ョ洃鍚?`socketInstance.onMessage`
  *
- * @param headers - 杩炴帴璇锋眰澶淬€?
- * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆?
+ * @param headers - 杩炴帴璇锋眰澶淬€? * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆?
  */
 function resolveSocketEndpoint(runtimeInfo?: Record<string, any>) {
   const info = runtimeInfo ?? (uni.getSystemInfoSync() as Record<string, any>)
@@ -346,7 +481,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
         ws.emit('error', `当前 Socket 地址未在小程序合法域名列表中：${endpoint}`)
       }
       else {
-        pushLog(`杩炴帴鍒涘缓澶辫触: ${message}`)
+        pushLog(`连接创建失败: ${message}`)
         ws.emit('error', message)
       }
     },
@@ -354,7 +489,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
 
   const socketTask = wsEx.socketInstance as UniNamespace.SocketTask | null
   if (!socketTask) {
-    throw new Error('socketInstance 鍒涘缓澶辫触')
+    throw new Error('socketInstance 创建失败')
   }
 
   socketTask.onOpen((res) => {
@@ -385,7 +520,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
 
     function onError(err?: string) {
       cleanup()
-      reject(new Error(err || 'WebSocket 杩炴帴澶辫触'))
+      reject(new Error(err || 'WebSocket 连接失败'))
     }
 
     ws.on('open', onOpen as any)
@@ -422,22 +557,24 @@ function closeCurrentSocket() {
 }
 
 /**
- * 鏍规嵁椤甸潰杈撳叆鏋勫缓鎾 TTS 璇锋眰鍙傛暟銆?
- *
+ * 鏍规嵁椤甸潰杈撳叆鏋勫缓鎾 TTS 璇锋眰鍙傛暟銆? *
  * @returns 璇锋眰瀵硅薄锛堜細鍦ㄥ彂閫佸墠琚?JSON.stringify锛夈€?
  */
 function buildRequestParams() {
+  const action = selectedGenerateMode.value.value
+  const nlpTexts = action === 3 ? parseNlpTextsInput(nlpTextsInput.value) : []
+
   return {
     input_id: `podcast_${Date.now()}`,
-    input_text: inputText.value.trim(),
-    prompt_text: promptText.value.trim(),
-    action: 0,
+    input_text: action === 4 ? '' : inputText.value.trim(),
+    prompt_text: action === 4 ? promptText.value.trim() : '',
+    action,
     speaker_info: {
       random_order: false,
-      // 鎾妯″紡瑕佹眰浼?2 涓彂闊充汉
+      // 发音人
       speakers: [selectedSpeaker.value.value, selectedSpeaker2.value.value],
     },
-    nlp_texts: [],
+    nlp_texts: nlpTexts,
     use_head_music: useHeadMusic.value,
     use_tail_music: useTailMusic.value,
     input_info: {
@@ -454,8 +591,7 @@ function buildRequestParams() {
 }
 
 /**
- * 澶勭悊鍙戦煶浜洪€夋嫨鍙樺寲銆?
- *
+ * 澶勭悊鍙戦煶浜洪€夋嫨鍙樺寲銆? *
  * @param event - `picker` 鍙樻洿浜嬩欢銆?
  */
 function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
@@ -466,8 +602,7 @@ function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
 }
 
 /**
- * 澶勭悊绗簩鍙戦煶浜洪€夋嫨鍙樺寲銆?
- *
+ * 澶勭悊绗簩鍙戦煶浜洪€夋嫨鍙樺寲銆? *
  * @param event - `picker` 鍙樻洿浜嬩欢銆?
  */
 function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
@@ -477,18 +612,43 @@ function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   }
 }
 
+function handleGenerateModeChange(event: { detail?: { value?: string | number } }) {
+  const index = Number(event?.detail?.value)
+  if (!Number.isNaN(index) && index >= 0 && index < generateModeOptions.length) {
+    selectedGenerateModeIndex.value = index
+  }
+}
+
 /**
  * 鐢熸垚鎾闊抽骞惰嚜鍔ㄦ挱鏀俱€?
  */
 async function generatePodcast() {
+  const action = selectedGenerateMode.value.value
   const text = inputText.value.trim()
-  if (!text) {
-    errorText.value = 'Please enter text to generate'
+  const prompt = promptText.value.trim()
+
+  if ((action === 0 || action === 3) && !text) {
+    errorText.value = '请输入 input_text'
     return
   }
 
+  if (action === 4 && !prompt) {
+    errorText.value = 'action = 4 时请填写 prompt_text'
+    return
+  }
+
+  if (action === 3) {
+    try {
+      parseNlpTextsInput(nlpTextsInput.value)
+    }
+    catch (error) {
+      errorText.value = error instanceof Error ? error.message : String(error)
+      return
+    }
+  }
+
   if (!APPID || !AccessToken || !SecretKey) {
-    errorText.value = '璇峰厛鍦?access.ts 涓厤缃?APPID / AccessToken / SecretKey'
+    errorText.value = '请先在 access.ts 中配置 APPID / AccessToken / SecretKey'
     return
   }
 
@@ -500,11 +660,12 @@ async function generatePodcast() {
   revokeAudioUrl(audioSrc.value)
   audioSrc.value = ''
   audioBytes.value = 0
+  audioData.value = null
   podcastTexts.value = []
   errorText.value = ''
   logs.value = []
   isLoading.value = true
-  statusText.value = '姝ｅ湪杩炴帴鏈嶅姟...'
+  statusText.value = '正在连接服务...'
 
   const headers = {
     'X-Api-App-Id': String(APPID),
@@ -518,7 +679,7 @@ async function generatePodcast() {
   let ws: WebSocket | null = null
 
   try {
-    pushLog('鍑嗗寤虹珛杩炴帴')
+    pushLog('准备建立连接')
     const runtimeInfo = uni.getSystemInfoSync() as Record<string, any>
     const endpoint = resolveSocketEndpoint(runtimeInfo)
     if (String(runtimeInfo?.uniPlatform || runtimeInfo?.platform || '').toLowerCase() === 'mp-weixin' && !sockBaseUrlMpWx) {
@@ -528,29 +689,29 @@ async function generatePodcast() {
     ws = await createProtocolSocket(headers, endpoint)
     currentSocket = ws
 
-    statusText.value = '鍙戦€佽繛鎺ュ垵濮嬪寲...'
+    statusText.value = '发送连接初始化...'
     await StartConnection(ws)
-    pushLog('宸插彂閫?StartConnection')
+    pushLog('已发送 StartConnection')
 
     await WaitForEvent(ws, MsgType.FullServerResponse, EventType.ConnectionStarted)
-    pushLog('鏀跺埌 ConnectionStarted')
+    pushLog('收到 ConnectionStarted')
 
     const sessionId = genId()
     const reqParams = buildRequestParams()
-    statusText.value = '鍙戦€佷細璇濊姹?..'
+    statusText.value = '发送会话请求...'
     await StartSession(
       ws,
       encodeUtf8(JSON.stringify(reqParams)),
       sessionId,
     )
-    pushLog(`宸插彂閫?StartSession: ${sessionId}`)
+    pushLog(`已发送 StartSession: ${sessionId}`)
 
     await WaitForEvent(ws, MsgType.FullServerResponse, EventType.SessionStarted)
-    pushLog('鏀跺埌 SessionStarted')
+    pushLog('收到 SessionStarted')
 
     await FinishSession(ws, sessionId)
-    pushLog('宸插彂閫?FinishSession锛岀瓑寰呮湇鍔＄娴佸紡杩斿洖')
-    statusText.value = '姝ｅ湪鐢熸垚闊抽锛岃绋嶅€?..'
+    pushLog('已发送 FinishSession，等待服务端流式返回')
+    statusText.value = '正在生成音频，请稍候...'
 
     while (true) {
       const msg = await ReceiveMessage(ws)
@@ -565,7 +726,7 @@ async function generatePodcast() {
       ) {
         audioChunks.push(msg.payload)
         audioBytes.value += msg.payload.length
-        statusText.value = `姝ｅ湪鎺ユ敹闊抽... ${Math.round(audioBytes.value / 1024)} KB`
+        statusText.value = `正在接收音频... ${Math.round(audioBytes.value / 1024)} KB`
         continue
       }
 
@@ -588,35 +749,36 @@ async function generatePodcast() {
         }
 
         if (msg.event === EventType.PodcastRoundEnd) {
-          pushLog('鏀跺埌 PodcastRoundEnd')
+          pushLog('收到 PodcastRoundEnd')
         }
 
         if (msg.event === EventType.PodcastEnd) {
-          pushLog('鏀跺埌 PodcastEnd')
+          pushLog('收到 PodcastEnd')
         }
       }
 
       if (msg.event === EventType.SessionFinished) {
-        pushLog('鏀跺埌 SessionFinished')
+        pushLog('收到 SessionFinished')
         break
       }
     }
 
-    statusText.value = '鍏抽棴杩炴帴涓?..'
+    statusText.value = '关闭连接中...'
     await FinishConnection(ws)
-    pushLog('宸插彂閫?FinishConnection')
+    pushLog('已发送 FinishConnection')
     await WaitForEvent(ws, MsgType.FullServerResponse, EventType.ConnectionFinished)
-    pushLog('鏀跺埌 ConnectionFinished')
+    pushLog('收到 ConnectionFinished')
 
     if (audioChunks.length === 0) {
       throw new Error('No audio data received from server')
     }
 
     const merged = concatUint8Arrays(audioChunks)
+    audioData.value = merged
     audioBytes.value = merged.length
     audioSrc.value = buildAudioUrl(merged, 'mp3')
     statusText.value = 'Generation complete, preparing playback'
-    pushLog(`闊抽鐢熸垚瀹屾垚锛?{Math.round(merged.length / 1024)} KB`)
+    pushLog(`音频生成完成，${Math.round(merged.length / 1024)} KB`)
 
     await nextTick()
     try {
@@ -624,14 +786,14 @@ async function generatePodcast() {
       pushLog('Auto play started')
     }
     catch (err) {
-      pushLog(`鑷姩鎾斁澶辫触锛岃鎵嬪姩鐐瑰嚮鎾斁锛?{String(err)}`)
+      pushLog(`自动播放失败，请手动点击播放：${String(err)}`)
     }
   }
   catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     errorText.value = msg
-    statusText.value = '鐢熸垚澶辫触'
-    pushLog(`閿欒锛?{msg}`)
+    statusText.value = '生成失败'
+    pushLog(`错误：${msg}`)
   }
   finally {
     isLoading.value = false
@@ -660,10 +822,10 @@ onBeforeUnmount(() => {
             Podcast TTS
           </text>
           <view class="hero-title">
-            鐏北鎾璇煶鐢熸垚娴嬭瘯
+            火山播客语音生成测试
           </view>
           <view class="hero-subtitle">
-            杈撳叆鏂囨湰鍚庤蛋 WebSocket 鍗忚鐢熸垚闊抽锛岃繑鍥炲悗鑷姩鎾斁
+            输入文本后通过 WebSocket 协议生成音频，返回后自动播放
           </view>
         </view>
         <view class="status-pill" :class="{ loading: isLoading }">
@@ -673,20 +835,48 @@ onBeforeUnmount(() => {
 
       <view class="form-block">
         <view class="field-label">
-          杈撳叆鏂囨湰
+          输入文本
         </view>
         <textarea
           v-model="inputText"
           class="text-input"
           :maxlength="3000"
-          placeholder="璇疯緭鍏ラ渶瑕佺敓鎴愭挱瀹㈣闊崇殑鍐呭"
+          placeholder="请输入需要生成播客语音的内容"
           :disabled="isLoading"
         />
       </view>
 
       <view class="form-block compact">
         <view class="field-label">
-          Prompt锛堝彲閫夛級
+          生成方式
+        </view>
+        <picker
+          mode="selector"
+          :range="generateModeOptions"
+          range-key="label"
+          :value="selectedGenerateModeIndex"
+          :disabled="isLoading"
+          @change="handleGenerateModeChange"
+        >
+          <view class="selector-box">
+            <view class="selector-main">
+              <view class="selector-title">
+                {{ selectedGenerateMode.label }}
+              </view>
+              <view class="selector-sub">
+                action={{ selectedGenerateMode.value }} · {{ selectedGenerateMode.desc }}
+              </view>
+            </view>
+            <view class="selector-arrow">
+              切换
+            </view>
+          </view>
+        </picker>
+      </view>
+
+      <view class="form-block compact">
+        <view class="field-label">
+          Prompt（可选）
         </view>
         <input
           v-model="promptText"
@@ -696,9 +886,22 @@ onBeforeUnmount(() => {
         >
       </view>
 
+      <view v-if="selectedGenerateMode.value === 3" class="form-block">
+        <view class="field-label">
+          nlp_texts（JSON）
+        </view>
+        <textarea
+          v-model="nlpTextsInput"
+          class="text-input nlp-input"
+          :maxlength="-1"
+          placeholder="请输入 nlp_texts JSON 数组"
+          :disabled="isLoading"
+        />
+      </view>
+
       <view class="form-block compact">
         <view class="field-label">
-          鍙戦煶浜?
+          发音人 1
         </view>
         <picker
           mode="selector"
@@ -718,7 +921,7 @@ onBeforeUnmount(() => {
               </view>
             </view>
             <view class="selector-arrow">
-              鍒囨崲
+              切换
             </view>
           </view>
         </picker>
@@ -726,7 +929,7 @@ onBeforeUnmount(() => {
 
       <view class="form-block compact">
         <view class="field-label">
-          鍙戦煶浜猴紙绗簩浣嶏級
+          发音人 2
         </view>
         <picker
           mode="selector"
@@ -746,7 +949,7 @@ onBeforeUnmount(() => {
               </view>
             </view>
             <view class="selector-arrow">
-              鍒囨崲
+              切换
             </view>
           </view>
         </picker>
@@ -754,13 +957,13 @@ onBeforeUnmount(() => {
 
       <view class="form-block compact">
         <view class="field-label">
-          闊虫晥璁剧疆
+          音效设置
         </view>
         <view class="toggle-grid">
           <view class="toggle-item">
             <view class="toggle-text">
               <view class="toggle-title">
-                寮€澶撮煶鏁?
+                开头音效
               </view>
               <view class="toggle-desc">
                 use_head_music
@@ -777,7 +980,7 @@ onBeforeUnmount(() => {
           <view class="toggle-item">
             <view class="toggle-text">
               <view class="toggle-title">
-                缁撳熬闊虫晥
+                结尾音效
               </view>
               <view class="toggle-desc">
                 use_tail_music
@@ -801,13 +1004,13 @@ onBeforeUnmount(() => {
           :disabled="isLoading"
           @click="generatePodcast"
         >
-          {{ isLoading ? 'Generating...' : 'Generate and Play' }}
+          {{ isLoading ? '生成中...' : '生成并播放' }}
         </button>
         <view class="meta-info">
-          <text>鍙戦煶浜?锛歿{ selectedSpeaker.label }}</text>
-          <text>鍙戦煶浜?锛歿{ selectedSpeaker2.label }}</text>
-          <text>闊抽澶у皬锛歿{ Math.round(audioBytes / 1024) }} KB</text>
-          <text>鏂囨湰娈垫暟锛歿{ podcastTexts.length }}</text>
+          <text>发音人 1：{{ selectedSpeaker.label }}</text>
+          <text>发音人 2：{{ selectedSpeaker2.label }}</text>
+          <text>音频大小：{{ Math.round(audioBytes / 1024) }} KB</text>
+          <text>文本段数：{{ podcastTexts.length }}</text>
         </view>
       </view>
 
@@ -818,8 +1021,15 @@ onBeforeUnmount(() => {
 
     <view class="result-card">
       <view class="section-title">
-        闊抽缁撴灉
+        音频结果
       </view>
+      <button
+        class="download-btn"
+        :disabled="!audioSrc || isDownloading"
+        @click="downloadAudio"
+      >
+        {{ isDownloading ? '下载中...' : '下载音频' }}
+      </button>
       <audio
         ref="audioEl"
         class="audio-player"
@@ -828,13 +1038,13 @@ onBeforeUnmount(() => {
         autoplay
       />
       <view v-if="!audioSrc" class="empty-tip">
-        鐢熸垚瀹屾垚鍚庝細鍦ㄨ繖閲岃嚜鍔ㄦ挱鏀鹃煶棰?
+        生成完成后会在这里自动播放音频
       </view>
     </view>
 
     <view v-if="podcastTexts.length" class="result-card">
       <view class="section-title">
-        鎾鏂囨湰鐗囨
+        播客文本片段
       </view>
       <view class="text-list">
         <view
@@ -854,7 +1064,7 @@ onBeforeUnmount(() => {
 
     <view class="result-card">
       <view class="section-title">
-        杩愯鏃ュ織
+        运行日志
       </view>
       <scroll-view scroll-y class="log-box">
         <view
@@ -969,6 +1179,11 @@ onBeforeUnmount(() => {
   color: #111827;
   font-size: 28rpx;
   line-height: 1.55;
+}
+
+.nlp-input {
+  min-height: 220rpx;
+  font-family: Consolas, 'Courier New', monospace;
 }
 
 .mini-input {
@@ -1107,6 +1322,14 @@ onBeforeUnmount(() => {
   min-height: 72rpx;
 }
 
+.download-btn {
+  margin-bottom: 16rpx;
+  border-radius: 18rpx;
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+
 .empty-tip {
   margin-top: 10rpx;
   font-size: 22rpx;
@@ -1180,5 +1403,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
-
