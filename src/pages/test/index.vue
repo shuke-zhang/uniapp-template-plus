@@ -45,9 +45,9 @@ interface PodcastNlpText {
 }
 
 const generateModeOptions: GenerateModeOption[] = [
+  { label: 'Prompt 联网播客', value: 4, desc: '根据 prompt_text 联网生成播客' },
   { label: '摘要生成播客', value: 0, desc: '根据 input_text 总结生成播客' },
   { label: '对话直出播客', value: 3, desc: '根据 nlp_texts 直接生成播客' },
-  { label: 'Prompt 联网播客', value: 4, desc: '根据 prompt_text 联网生成播客' },
 ]
 
 const inputText = ref('什么是脑机接口')
@@ -67,7 +67,6 @@ const audioBytes = ref(0)
 const audioData = ref<Uint8Array | null>(null)
 const podcastTexts = ref<PodcastRoundText[]>([])
 const audioEl = ref<HTMLAudioElement | null>(null)
-const isDownloading = ref(false)
 
 let currentSocket: WebSocket | null = null
 let currentLogHandler: ((msg: string) => void) | null = null
@@ -76,7 +75,8 @@ const selectedSpeaker = computed(() => speakerOptions[selectedSpeakerIndex.value
 const selectedSpeaker2 = computed(() => speakerOptions[selectedSpeakerIndex2.value] ?? speakerOptions[1] ?? speakerOptions[0])
 
 /**
- * 鑾峰彇杩愯鏃跺叏灞€ Buffer锛堝瓨鍦ㄦ椂浼樺厛鐢ㄤ簬 UTF-8 缂栬В鐮侊級銆?
+ * 获取运行时全局 Buffer。
+ * 如果当前环境提供 `Buffer.from`，优先用于 UTF-8 编解码。
  */
 function getRuntimeBuffer():
   | {
@@ -90,11 +90,14 @@ function getRuntimeBuffer():
 }
 
 /**
- * 灏嗗瓧绗︿覆缂栫爜涓?UTF-8 瀛楄妭鏁扮粍锛堝吋瀹?App 鐜锛夈€? *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * 缂栫爜绛栫暐锛? * - 浼樺厛浣跨敤杩愯鏃跺叏灞€ `Buffer.from(str, 'utf8')`
- * - 鏃?Buffer 鏃朵娇鐢ㄧ函 JS UTF-8 缂栫爜
+ * 将字符串编码为 UTF-8 字节数组，兼容没有 `TextEncoder` 的环境。
  *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * @returns UTF-8 瀛楄妭鏁扮粍銆?
+ * 编码策略：
+ * - 优先使用运行时提供的 `Buffer.from(value, 'utf8')`
+ * - 否则使用纯 JavaScript 逻辑手动编码
+ *
+ * @param value 待编码的字符串
+ * @returns UTF-8 字节数组
  */
 function encodeUtf8(value: string): Uint8Array {
   const runtimeBuffer = getRuntimeBuffer()
@@ -140,9 +143,13 @@ function encodeUtf8(value: string): Uint8Array {
 }
 
 /**
- * 灏?UTF-8 瀛楄妭鏁扮粍瑙ｇ爜涓哄瓧绗︿覆锛堝吋瀹?App 鐜锛夈€? *
- * 瑙ｇ爜绛栫暐锛? * - 浣跨敤绾?JS UTF-8 瑙ｇ爜锛堥伩鍏嶄緷璧?`TextDecoder`锛? *
- * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€? * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€?
+ * 将 UTF-8 字节数组解码为字符串，兼容没有 `TextDecoder` 的环境。
+ *
+ * 解码策略：
+ * - 使用纯 JavaScript 逻辑手动解码
+ *
+ * @param bytes 待解码的字节数组
+ * @returns 解码后的字符串
  */
 function decodeUtf8(bytes: Uint8Array): string {
   let result = ''
@@ -180,8 +187,9 @@ function decodeUtf8(bytes: Uint8Array): string {
 }
 
 /**
- * 鍐欏叆椤甸潰鏃ュ織锛堜繚鐣欐渶杩?50 鏉★級銆? *
- * @param message - 鏃ュ織鏂囨湰銆?
+ * 写入页面日志，只保留最近 50 条。
+ *
+ * @param message 日志文本
  */
 function pushLog(message: string) {
   const line = `[${new Date().toLocaleTimeString()}] ${message}`
@@ -189,8 +197,9 @@ function pushLog(message: string) {
 }
 
 /**
- * 鐢熸垚杩炴帴/浼氳瘽浣跨敤鐨勫敮涓€ ID銆? *
- * @returns 绠€鍗?UUID 椋庢牸瀛楃涓层€?
+ * 生成连接或会话使用的唯一 ID。
+ *
+ * @returns 简单的 UUID 风格字符串
  */
 function genId(): string {
   const random = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1)
@@ -198,16 +207,20 @@ function genId(): string {
 }
 
 /**
- * 绛夊緟鎸囧畾姣鏁般€? *
- * @param ms - 姣鏁般€? * @returns Promise銆?
+ * 等待指定毫秒数。
+ *
+ * @param ms 毫秒数
+ * @returns Promise
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
- * 鍚堝苟澶氭闊抽瀛楄妭銆? *
- * @param chunks - 闊抽鍒嗙墖鏁扮粍銆? * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆?
+ * 合并多段音频字节数据。
+ *
+ * @param chunks 音频分片数组
+ * @returns 合并后的字节数据
  */
 function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, item) => sum + item.length, 0)
@@ -220,15 +233,12 @@ function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return result
 }
 
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copied = new Uint8Array(bytes.byteLength)
-  copied.set(bytes)
-  return copied.buffer
-}
-
 /**
- * 灏嗕簩杩涘埗闊抽杞崲涓哄彲鎾斁鍦板潃锛堜紭鍏堜娇鐢?Blob URL锛夈€? *
- * @param bytes - 闊抽瀛楄妭銆? * @param format - 闊抽鏍煎紡锛屽 `mp3`銆? * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆?
+ * 将二进制音频转换为可播放地址，优先使用 Blob URL。
+ *
+ * @param bytes 音频字节数据
+ * @param format 音频格式，例如 `mp3`
+ * @returns 可直接绑定到 `<audio>` 的地址
  */
 function buildAudioUrl(bytes: Uint8Array, format: string): string {
   const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
@@ -239,7 +249,7 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
     const rawBuffer = bytes.buffer
 
     if (rawBuffer instanceof SharedArrayBuffer) {
-      // 蹇呴』澶嶅埗涓虹湡姝ｇ殑 ArrayBuffer
+      // SharedArrayBuffer 需要先复制成真正的 ArrayBuffer
       const copied = new Uint8Array(bytes.byteLength)
       copied.set(
         new Uint8Array(
@@ -251,7 +261,7 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
       arrayBuffer = copied.buffer
     }
     else {
-      // 杩欓噷绫诲瀷琚畨鍏ㄦ敹绐勪负 ArrayBuffer
+      // 这里安全地截取出当前视图对应的 ArrayBuffer
       arrayBuffer = rawBuffer.slice(
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,
@@ -282,8 +292,9 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
 }
 
 /**
- * 閲婃斁鏃х殑 Blob URL锛岄伩鍏嶉噸澶嶇敓鎴愬悗鍗犵敤鍐呭瓨銆? *
- * @param url - 鏃х殑闊抽鍦板潃銆?
+ * 释放旧的 Blob URL，避免重复生成后占用内存。
+ *
+ * @param url 旧的音频地址
  */
 function revokeAudioUrl(url: string) {
   if (!url)
@@ -291,10 +302,6 @@ function revokeAudioUrl(url: string) {
   if (typeof URL !== 'undefined' && url.startsWith('blob:')) {
     URL.revokeObjectURL(url)
   }
-}
-
-function getAudioFileName() {
-  return `podcast_${Date.now()}.mp3`
 }
 
 function parseNlpTextsInput(value: string): PodcastNlpText[] {
@@ -317,128 +324,11 @@ function parseNlpTextsInput(value: string): PodcastNlpText[] {
   })
 }
 
-function getLocalAudioDirectory() {
-  if (isApp && typeof plus !== 'undefined') {
-    return `${plus.io.convertLocalFileSystemURL('_doc/')}/`
-  }
-
-  if (isWeixin) {
-    const wxAny = globalThis as unknown as {
-      wx?: {
-        env?: {
-          USER_DATA_PATH?: string
-        }
-      }
-    }
-    return wxAny.wx?.env?.USER_DATA_PATH || ''
-  }
-
-  return ''
-}
-
-function saveBlobAudio(bytes: Uint8Array) {
-  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') {
-    throw new TypeError('当前环境不支持浏览器下载')
-  }
-
-  const link = document.createElement('a')
-  const objectUrl = URL.createObjectURL(new Blob([toArrayBuffer(bytes)], { type: 'audio/mpeg' }))
-  link.href = objectUrl
-  link.download = getAudioFileName()
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
-}
-
-function writeAudioToLocalFile(bytes: Uint8Array) {
-  const uniAny = uni as unknown as {
-    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
-    getFileSystemManager?: () => {
-      writeFileSync?: (filePath: string, data: string, encoding?: string) => void
-    }
-    saveFile?: (options: {
-      tempFilePath: string
-      success?: (res: { savedFilePath: string }) => void
-      fail?: (err: unknown) => void
-    }) => void
-  }
-
-  if (typeof uniAny.arrayBufferToBase64 !== 'function' || typeof uniAny.getFileSystemManager !== 'function') {
-    throw new TypeError('当前环境不支持写入本地音频文件')
-  }
-
-  const fs = uniAny.getFileSystemManager()
-  const baseDir = getLocalAudioDirectory()
-  if (!baseDir || typeof fs?.writeFileSync !== 'function') {
-    throw new Error('当前环境缺少可写目录')
-  }
-
-  const tempFilePath = `${baseDir}/${getAudioFileName()}`
-  const base64 = uniAny.arrayBufferToBase64(toArrayBuffer(bytes))
-  fs.writeFileSync(tempFilePath, base64, 'base64')
-
-  return new Promise<string>((resolve, reject) => {
-    if (typeof uniAny.saveFile !== 'function') {
-      resolve(tempFilePath)
-      return
-    }
-
-    uniAny.saveFile({
-      tempFilePath,
-      success: res => resolve(res.savedFilePath || tempFilePath),
-      fail: err => reject(err),
-    })
-  })
-}
-
-async function downloadAudio() {
-  if (!audioData.value?.length) {
-    uni.showToast({
-      title: '请先生成音频',
-      icon: 'none',
-    })
-    return
-  }
-
-  isDownloading.value = true
-  try {
-    if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
-      saveBlobAudio(audioData.value)
-      pushLog('已触发浏览器音频下载')
-      uni.showToast({
-        title: '开始下载',
-        icon: 'success',
-      })
-      return
-    }
-
-    const savedFilePath = await writeAudioToLocalFile(audioData.value)
-    pushLog(`音频已保存: ${savedFilePath}`)
-    uni.showModal({
-      title: '下载完成',
-      content: `音频已保存到：${savedFilePath}`,
-      showCancel: false,
-    })
-  }
-  catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    pushLog(`下载失败: ${message}`)
-    uni.showToast({
-      title: '下载失败',
-      icon: 'none',
-    })
-  }
-  finally {
-    isDownloading.value = false
-  }
-}
-
 /**
- * 鍦ㄤ笉淇敼 `WebSocket` 绫绘枃浠剁殑鍓嶆彁涓嬶紝鍒涘缓鍙緵鍗忚灞備娇鐢ㄧ殑杩炴帴瀹炰緥銆? *
- * 鍋氭硶锛? * - 瀹炰緥浠嶇劧浣跨敤 `new WebSocket(...)`
- * - 椤甸潰鑷閫氳繃 `uni.connectSocket` 浼犲叆閴存潈 header
- * - 灏嗗簳灞?`SocketTask` 鎸傚埌瀹炰緥鐨?`socketInstance` 涓? * - 鍙浆鍙?`open/close/error` 浜嬩欢缁欏崗璁眰锛涘師濮嬫秷鎭敱鍗忚灞傜洿鎺ョ洃鍚?`socketInstance.onMessage`
+ * 根据运行环境解析实际使用的 Socket 连接地址。
  *
- * @param headers - 杩炴帴璇锋眰澶淬€? * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆?
+ * @param runtimeInfo 可选的运行环境信息对象
+ * @returns 对应环境下应使用的 Socket 地址
  */
 function resolveSocketEndpoint(runtimeInfo?: Record<string, any>) {
   const info = runtimeInfo ?? (uni.getSystemInfoSync() as Record<string, any>)
@@ -448,11 +338,24 @@ function resolveSocketEndpoint(runtimeInfo?: Record<string, any>) {
   return sockBaseUrl
 }
 
+/**
+ * 在不修改 `WebSocket` 类文件的前提下，创建一个供协议层使用的连接实例。
+ *
+ * 做法：
+ * - 实例仍然通过 `new WebSocket(...)` 创建
+ * - 页面层自行通过 `uni.connectSocket` 传入鉴权 header
+ * - 将底层 `SocketTask` 挂到实例的 `socketInstance` 上
+ * - 只转发 `open`、`close`、`error` 事件给协议层，消息仍由 `socketInstance.onMessage` 处理
+ *
+ * @param headers 连接请求头
+ * @param endpoint 目标 Socket 地址
+ * @returns 已连接的 `WebSocket` 实例
+ */
 async function createProtocolSocket(headers: Record<string, string>, endpoint: string): Promise<WebSocket> {
   const ws = new WebSocket(endpoint)
   const wsEx = ws as any
 
-  // 椤甸潰鏃ュ織鎺ュ叆浣犲皝瑁呯被鐨勪簨浠剁郴缁燂紙渚夸簬鎺掓煡杩炴帴鐘舵€侊級
+  // 接入页面日志，方便排查连接状态
   currentLogHandler = (msg: string) => pushLog(`socket: ${msg}`)
   ws.on('log', currentLogHandler as any)
   ws.on('open', () => pushLog('socket: open'))
@@ -463,8 +366,8 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
   wsEx.isConnect = false
   wsEx.isInitiative = false
 
-  // 涓嶄慨鏀逛綘灏佽绫绘簮鐮佺殑鍓嶆彁涓嬶紝杩欓噷浠呰礋璐ｂ€滃甫閴存潈澶粹€濆垱寤哄簳灞?SocketTask锛?
-  // 骞剁户缁寕杞藉洖浣犵殑 WebSocket 瀹炰緥锛屽悗缁崗璁眰浠嶇劧浣跨敤璇ュ疄渚嬨€?
+  // 这里负责用鉴权头创建底层 SocketTask
+  // 然后再挂回当前 WebSocket 实例，后续协议层仍使用这个实例
   wsEx.socketInstance = uni.connectSocket({
     url: endpoint,
     header: {
@@ -532,7 +435,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
 }
 
 /**
- * 鍏抽棴褰撳墠 socket锛堝瀛樺湪锛夈€?
+ * 关闭当前 socket（如果存在）。
  */
 function closeCurrentSocket() {
   if (!currentSocket)
@@ -557,8 +460,9 @@ function closeCurrentSocket() {
 }
 
 /**
- * 鏍规嵁椤甸潰杈撳叆鏋勫缓鎾 TTS 璇锋眰鍙傛暟銆? *
- * @returns 璇锋眰瀵硅薄锛堜細鍦ㄥ彂閫佸墠琚?JSON.stringify锛夈€?
+ * 根据页面输入构建播客 TTS 请求参数。
+ *
+ * @returns 发送前会被 `JSON.stringify` 的请求对象
  */
 function buildRequestParams() {
   const action = selectedGenerateMode.value.value
@@ -591,8 +495,11 @@ function buildRequestParams() {
 }
 
 /**
- * 澶勭悊鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ * 处理发音人 1 的选择变更。
+ *
+ * @param event `picker` 变更事件
+ * @param event.detail 变更事件详情
+ * @param event.detail.value 当前选中的索引值
  */
 function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
@@ -602,8 +509,11 @@ function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
 }
 
 /**
- * 澶勭悊绗簩鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ * 处理发音人 2 的选择变更。
+ *
+ * @param event `picker` 变更事件
+ * @param event.detail 变更事件详情
+ * @param event.detail.value 当前选中的索引值
  */
 function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
@@ -612,6 +522,13 @@ function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   }
 }
 
+/**
+ * 处理生成方式的选择变更。
+ *
+ * @param event `picker` 变更事件
+ * @param event.detail 变更事件详情
+ * @param event.detail.value 当前选中的索引值
+ */
 function handleGenerateModeChange(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
   if (!Number.isNaN(index) && index >= 0 && index < generateModeOptions.length) {
@@ -620,14 +537,14 @@ function handleGenerateModeChange(event: { detail?: { value?: string | number } 
 }
 
 /**
- * 鐢熸垚鎾闊抽骞惰嚜鍔ㄦ挱鏀俱€?
+ * 生成播客音频并在完成后自动播放。
  */
 async function generatePodcast() {
   const action = selectedGenerateMode.value.value
   const text = inputText.value.trim()
   const prompt = promptText.value.trim()
 
-  if ((action === 0 || action === 3) && !text) {
+  if (action === 0 && !text) {
     errorText.value = '请输入 input_text'
     return
   }
@@ -806,6 +723,31 @@ async function generatePodcast() {
     closeCurrentSocket()
   }
 }
+function handleCopyAudioSrc(): void {
+  if (!audioSrc.value) {
+    uni.showToast({
+      title: '音频地址为空',
+      icon: 'none',
+    })
+    return
+  }
+
+  uni.setClipboardData({
+    data: audioSrc.value,
+    success: () => {
+      uni.showToast({
+        title: '复制成功',
+        icon: 'success',
+      })
+    },
+    fail: () => {
+      uni.showToast({
+        title: '复制失败',
+        icon: 'none',
+      })
+    },
+  })
+}
 
 onBeforeUnmount(() => {
   revokeAudioUrl(audioSrc.value)
@@ -831,19 +773,6 @@ onBeforeUnmount(() => {
         <view class="status-pill" :class="{ loading: isLoading }">
           {{ statusText }}
         </view>
-      </view>
-
-      <view class="form-block">
-        <view class="field-label">
-          输入文本
-        </view>
-        <textarea
-          v-model="inputText"
-          class="text-input"
-          :maxlength="3000"
-          placeholder="请输入需要生成播客语音的内容"
-          :disabled="isLoading"
-        />
       </view>
 
       <view class="form-block compact">
@@ -874,16 +803,31 @@ onBeforeUnmount(() => {
         </picker>
       </view>
 
-      <view class="form-block compact">
+      <view v-if="selectedGenerateMode.value === 0" class="form-block">
         <view class="field-label">
-          Prompt（可选）
+          输入文本
         </view>
-        <input
-          v-model="promptText"
-          class="mini-input"
-          placeholder="optional"
+        <textarea
+          v-model="inputText"
+          class="text-input"
+          :maxlength="3000"
+          placeholder="请输入需要生成播客语音的内容"
           :disabled="isLoading"
-        >
+        />
+      </view>
+
+      <view v-if="selectedGenerateMode.value === 4" class="form-block compact">
+        <view class="field-label">
+          Prompt 文本
+        </view>
+
+        <textarea
+          v-model="promptText"
+          class="text-input"
+          :maxlength="3000"
+          placeholder="请输入 prompt_text"
+          :disabled="isLoading"
+        />
       </view>
 
       <view v-if="selectedGenerateMode.value === 3" class="form-block">
@@ -1023,13 +967,7 @@ onBeforeUnmount(() => {
       <view class="section-title">
         音频结果
       </view>
-      <button
-        class="download-btn"
-        :disabled="!audioSrc || isDownloading"
-        @click="downloadAudio"
-      >
-        {{ isDownloading ? '下载中...' : '下载音频' }}
-      </button>
+
       <audio
         ref="audioEl"
         class="audio-player"
@@ -1037,6 +975,14 @@ onBeforeUnmount(() => {
         controls
         autoplay
       />
+      <view v-if="audioSrc.length > 0">
+        <view>
+          当前音频地址---{{ audioSrc }}
+        </view>
+        <button @click="handleCopyAudioSrc">
+          复制音频地址
+        </button>
+      </view>
       <view v-if="!audioSrc" class="empty-tip">
         生成完成后会在这里自动播放音频
       </view>

@@ -76,7 +76,11 @@ const selectedSpeaker = computed(() => speakerOptions[selectedSpeakerIndex.value
 const selectedSpeaker2 = computed(() => speakerOptions[selectedSpeakerIndex2.value] ?? speakerOptions[1] ?? speakerOptions[0])
 
 /**
- * 鑾峰彇杩愯鏃跺叏灞€ Buffer锛堝瓨鍦ㄦ椂浼樺厛鐢ㄤ簬 UTF-8 缂栬В鐮侊級銆?
+ * 获取运行时全局 `Buffer`。
+ *
+ * 优先使用它处理 UTF-8 编解码，以兼容不同运行环境。
+ *
+ * @returns 可用的全局 `Buffer`，不存在时返回 `undefined`
  */
 function getRuntimeBuffer():
   | {
@@ -90,11 +94,14 @@ function getRuntimeBuffer():
 }
 
 /**
- * 灏嗗瓧绗︿覆缂栫爜涓?UTF-8 瀛楄妭鏁扮粍锛堝吋瀹?App 鐜锛夈€? *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * 缂栫爜绛栫暐锛? * - 浼樺厛浣跨敤杩愯鏃跺叏灞€ `Buffer.from(str, 'utf8')`
- * - 鏃?Buffer 鏃朵娇鐢ㄧ函 JS UTF-8 缂栫爜
+ * 将字符串编码为 UTF-8 字节数组。
  *
- * @param value - 寰呯紪鐮佸瓧绗︿覆銆? * @returns UTF-8 瀛楄妭鏁扮粍銆?
+ * 编码策略：
+ * - 优先使用运行时全局 `Buffer.from(value, 'utf8')`
+ * - 不存在 `Buffer` 时回退到纯 JavaScript UTF-8 编码
+ *
+ * @param value - 待编码的字符串
+ * @returns UTF-8 字节数组
  */
 function encodeUtf8(value: string): Uint8Array {
   const runtimeBuffer = getRuntimeBuffer()
@@ -140,9 +147,13 @@ function encodeUtf8(value: string): Uint8Array {
 }
 
 /**
- * 灏?UTF-8 瀛楄妭鏁扮粍瑙ｇ爜涓哄瓧绗︿覆锛堝吋瀹?App 鐜锛夈€? *
- * 瑙ｇ爜绛栫暐锛? * - 浣跨敤绾?JS UTF-8 瑙ｇ爜锛堥伩鍏嶄緷璧?`TextDecoder`锛? *
- * @param bytes - 寰呰В鐮佸瓧鑺傛暟缁勩€? * @returns 瑙ｇ爜鍚庣殑瀛楃涓层€?
+ * 将 UTF-8 字节数组解码为字符串。
+ *
+ * 为兼容部分运行环境，这里使用纯 JavaScript 实现，
+ * 避免依赖 `TextDecoder`。
+ *
+ * @param bytes - 待解码的字节数组
+ * @returns 解码后的字符串
  */
 function decodeUtf8(bytes: Uint8Array): string {
   let result = ''
@@ -180,8 +191,9 @@ function decodeUtf8(bytes: Uint8Array): string {
 }
 
 /**
- * 鍐欏叆椤甸潰鏃ュ織锛堜繚鐣欐渶杩?50 鏉★級銆? *
- * @param message - 鏃ュ織鏂囨湰銆?
+ * 写入页面日志，并仅保留最近 50 条记录。
+ *
+ * @param message - 日志文本
  */
 function pushLog(message: string) {
   const line = `[${new Date().toLocaleTimeString()}] ${message}`
@@ -189,8 +201,9 @@ function pushLog(message: string) {
 }
 
 /**
- * 鐢熸垚杩炴帴/浼氳瘽浣跨敤鐨勫敮涓€ ID銆? *
- * @returns 绠€鍗?UUID 椋庢牸瀛楃涓层€?
+ * 生成连接或会话使用的唯一 ID。
+ *
+ * @returns 简单的 UUID 风格字符串
  */
 function genId(): string {
   const random = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1)
@@ -198,16 +211,20 @@ function genId(): string {
 }
 
 /**
- * 绛夊緟鎸囧畾姣鏁般€? *
- * @param ms - 姣鏁般€? * @returns Promise銆?
+ * 等待指定的毫秒数。
+ *
+ * @param ms - 毫秒数
+ * @returns 在等待结束后完成的 Promise
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
- * 鍚堝苟澶氭闊抽瀛楄妭銆? *
- * @param chunks - 闊抽鍒嗙墖鏁扮粍銆? * @returns 鍚堝苟鍚庣殑瀛楄妭鏁版嵁銆?
+ * 合并多段音频字节数据。
+ *
+ * @param chunks - 音频分片数组
+ * @returns 合并后的字节数据
  */
 function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, item) => sum + item.length, 0)
@@ -227,8 +244,13 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 }
 
 /**
- * 灏嗕簩杩涘埗闊抽杞崲涓哄彲鎾斁鍦板潃锛堜紭鍏堜娇鐢?Blob URL锛夈€? *
- * @param bytes - 闊抽瀛楄妭銆? * @param format - 闊抽鏍煎紡锛屽 `mp3`銆? * @returns 鍙洿鎺ョ粦瀹氬埌 `<audio>` 鐨勫湴鍧€銆?
+ * 将二进制音频转换为可播放地址。
+ *
+ * 优先生成 `Blob URL`，回退时再尝试生成 Base64 Data URL。
+ *
+ * @param bytes - 音频字节数据
+ * @param format - 音频格式，例如 `mp3`
+ * @returns 可直接绑定到 `<audio>` 的播放地址
  */
 function buildAudioUrl(bytes: Uint8Array, format: string): string {
   const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
@@ -239,7 +261,7 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
     const rawBuffer = bytes.buffer
 
     if (rawBuffer instanceof SharedArrayBuffer) {
-      // 蹇呴』澶嶅埗涓虹湡姝ｇ殑 ArrayBuffer
+      // 必须复制为真正的 ArrayBuffer
       const copied = new Uint8Array(bytes.byteLength)
       copied.set(
         new Uint8Array(
@@ -251,7 +273,7 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
       arrayBuffer = copied.buffer
     }
     else {
-      // 杩欓噷绫诲瀷琚畨鍏ㄦ敹绐勪负 ArrayBuffer
+      // 这里可以安全地收窄为 ArrayBuffer
       arrayBuffer = rawBuffer.slice(
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,
@@ -282,8 +304,9 @@ function buildAudioUrl(bytes: Uint8Array, format: string): string {
 }
 
 /**
- * 閲婃斁鏃х殑 Blob URL锛岄伩鍏嶉噸澶嶇敓鎴愬悗鍗犵敤鍐呭瓨銆? *
- * @param url - 鏃х殑闊抽鍦板潃銆?
+ * 释放旧的 Blob URL，避免重复创建后占用内存。
+ *
+ * @param url - 旧的音频地址
  */
 function revokeAudioUrl(url: string) {
   if (!url)
@@ -433,12 +456,17 @@ async function downloadAudio() {
 }
 
 /**
- * 鍦ㄤ笉淇敼 `WebSocket` 绫绘枃浠剁殑鍓嶆彁涓嬶紝鍒涘缓鍙緵鍗忚灞備娇鐢ㄧ殑杩炴帴瀹炰緥銆? *
- * 鍋氭硶锛? * - 瀹炰緥浠嶇劧浣跨敤 `new WebSocket(...)`
- * - 椤甸潰鑷閫氳繃 `uni.connectSocket` 浼犲叆閴存潈 header
- * - 灏嗗簳灞?`SocketTask` 鎸傚埌瀹炰緥鐨?`socketInstance` 涓? * - 鍙浆鍙?`open/close/error` 浜嬩欢缁欏崗璁眰锛涘師濮嬫秷鎭敱鍗忚灞傜洿鎺ョ洃鍚?`socketInstance.onMessage`
+ * 创建供协议层使用的 WebSocket 实例，而不修改现有 `WebSocket` 类文件。
  *
- * @param headers - 杩炴帴璇锋眰澶淬€? * @returns 宸茶繛鎺ョ殑 `WebSocket` 瀹炰緥銆?
+ * 处理方式：
+ * - 仍然使用 `new WebSocket(...)` 创建实例
+ * - 由页面层通过 `uni.connectSocket` 传入鉴权请求头
+ * - 将底层 `SocketTask` 挂到实例的 `socketInstance` 上
+ * - 仅向协议层转发 `open`、`close`、`error` 事件，消息体仍由 `socketInstance.onMessage` 处理
+ *
+ * @param headers - 连接请求头
+ * @param endpoint - WebSocket 连接地址
+ * @returns 已完成连接的 `WebSocket` 实例
  */
 function resolveSocketEndpoint(runtimeInfo?: Record<string, any>) {
   const info = runtimeInfo ?? (uni.getSystemInfoSync() as Record<string, any>)
@@ -452,7 +480,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
   const ws = new WebSocket(endpoint)
   const wsEx = ws as any
 
-  // 椤甸潰鏃ュ織鎺ュ叆浣犲皝瑁呯被鐨勪簨浠剁郴缁燂紙渚夸簬鎺掓煡杩炴帴鐘舵€侊級
+  // 接入页面日志，复用封装类自身的事件体系，便于排查连接状态
   currentLogHandler = (msg: string) => pushLog(`socket: ${msg}`)
   ws.on('log', currentLogHandler as any)
   ws.on('open', () => pushLog('socket: open'))
@@ -463,8 +491,8 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
   wsEx.isConnect = false
   wsEx.isInitiative = false
 
-  // 涓嶄慨鏀逛綘灏佽绫绘簮鐮佺殑鍓嶆彁涓嬶紝杩欓噷浠呰礋璐ｂ€滃甫閴存潈澶粹€濆垱寤哄簳灞?SocketTask锛?
-  // 骞剁户缁寕杞藉洖浣犵殑 WebSocket 瀹炰緥锛屽悗缁崗璁眰浠嶇劧浣跨敤璇ュ疄渚嬨€?
+  // 不修改你现有封装源码，这里只负责创建带鉴权请求头的底层 SocketTask。
+  // 随后再挂回现有 WebSocket 实例，后续协议层仍按原来的方式使用该实例。
   wsEx.socketInstance = uni.connectSocket({
     url: endpoint,
     header: {
@@ -532,7 +560,7 @@ async function createProtocolSocket(headers: Record<string, string>, endpoint: s
 }
 
 /**
- * 鍏抽棴褰撳墠 socket锛堝瀛樺湪锛夈€?
+ * 关闭当前 socket（如果存在）。
  */
 function closeCurrentSocket() {
   if (!currentSocket)
@@ -557,8 +585,9 @@ function closeCurrentSocket() {
 }
 
 /**
- * 鏍规嵁椤甸潰杈撳叆鏋勫缓鎾 TTS 璇锋眰鍙傛暟銆? *
- * @returns 璇锋眰瀵硅薄锛堜細鍦ㄥ彂閫佸墠琚?JSON.stringify锛夈€?
+ * 根据页面输入构建播客 TTS 请求参数。
+ *
+ * @returns 发送前会被 `JSON.stringify` 的请求对象
  */
 function buildRequestParams() {
   const action = selectedGenerateMode.value.value
@@ -591,8 +620,9 @@ function buildRequestParams() {
 }
 
 /**
- * 澶勭悊鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ * 处理发音人选择变化。
+ *
+ * @param event - `picker` 变更事件
  */
 function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
@@ -602,8 +632,9 @@ function handleSpeakerChange(event: { detail?: { value?: string | number } }) {
 }
 
 /**
- * 澶勭悊绗簩鍙戦煶浜洪€夋嫨鍙樺寲銆? *
- * @param event - `picker` 鍙樻洿浜嬩欢銆?
+ * 处理第二个发音人选择变化。
+ *
+ * @param event - `picker` 变更事件
  */
 function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
@@ -612,6 +643,11 @@ function handleSpeakerChange2(event: { detail?: { value?: string | number } }) {
   }
 }
 
+/**
+ * 处理生成模式选择变化。
+ *
+ * @param event - `picker` 变更事件
+ */
 function handleGenerateModeChange(event: { detail?: { value?: string | number } }) {
   const index = Number(event?.detail?.value)
   if (!Number.isNaN(index) && index >= 0 && index < generateModeOptions.length) {
@@ -620,7 +656,7 @@ function handleGenerateModeChange(event: { detail?: { value?: string | number } 
 }
 
 /**
- * 鐢熸垚鎾闊抽骞惰嚜鍔ㄦ挱鏀俱€?
+ * 生成播客音频并自动播放。
  */
 async function generatePodcast() {
   const action = selectedGenerateMode.value.value
