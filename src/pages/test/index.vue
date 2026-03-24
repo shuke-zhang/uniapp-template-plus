@@ -67,12 +67,110 @@ const audioBytes = ref(0)
 const audioData = ref<Uint8Array | null>(null)
 const podcastTexts = ref<PodcastRoundText[]>([])
 const audioEl = ref<HTMLAudioElement | null>(null)
+const isSavingAudio = ref(false)
+const audioLocalPath = ref('')
 
 let currentSocket: WebSocket | null = null
 let currentLogHandler: ((msg: string) => void) | null = null
 const selectedGenerateMode = computed(() => generateModeOptions[selectedGenerateModeIndex.value] ?? generateModeOptions[0])
 const selectedSpeaker = computed(() => speakerOptions[selectedSpeakerIndex.value] ?? speakerOptions[0])
 const selectedSpeaker2 = computed(() => speakerOptions[selectedSpeakerIndex2.value] ?? speakerOptions[1] ?? speakerOptions[0])
+
+/**
+ * 从 Uint8Array 安全提取当前视图对应的 ArrayBuffer。
+ *
+ * @param bytes 音频字节
+ * @returns ArrayBuffer
+ */
+function getSafeArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const rawBuffer = bytes.buffer
+
+  if (rawBuffer instanceof SharedArrayBuffer) {
+    const copied = new Uint8Array(bytes.byteLength)
+    copied.set(
+      new Uint8Array(
+        rawBuffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      ),
+    )
+    return copied.buffer
+  }
+
+  return rawBuffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  )
+}
+
+/**
+ * 在 App 环境下将音频字节写入本地文件，并返回本地路径。
+ *
+ * @param bytes 音频字节
+ * @param format 音频格式
+ * @returns 本地文件路径
+ */
+async function writeAudioToLocalFile(
+  bytes: Uint8Array,
+  format: 'mp3' | 'wav' = 'mp3',
+): Promise<string> {
+  // #ifndef APP-PLUS
+  throw new Error('当前不是 App 环境，无法写入本地音频文件')
+  // #endif
+
+  const arrayBuffer = getSafeArrayBuffer(bytes)
+  const fileName = `podcast_${Date.now()}.${format}`
+  const dirPath = '_doc/podcast_audio'
+  const filePath = `${dirPath}/${fileName}`
+
+  return await new Promise<string>((resolve, reject) => {
+    plus.io.resolveLocalFileSystemURL(
+      '_doc',
+      (rootEntry: any) => {
+        rootEntry.getDirectory(
+          'podcast_audio',
+          { create: true },
+          (dirEntry: any) => {
+            dirEntry.getFile(
+              fileName,
+              { create: true },
+              (fileEntry: any) => {
+                fileEntry.createWriter(
+                  (writer: any) => {
+                    writer.onwrite = () => {
+                      resolve(filePath)
+                    }
+                    writer.onerror = (error: any) => {
+                      reject(error)
+                    }
+
+                    const blob = new Blob([arrayBuffer], {
+                      type: format === 'wav' ? 'audio/wav' : 'audio/mpeg',
+                    })
+
+                    writer.write(blob)
+                  },
+                  (error: any) => {
+                    reject(error)
+                  },
+                )
+              },
+              (error: any) => {
+                reject(error)
+              },
+            )
+          },
+          (error: any) => {
+            reject(error)
+          },
+        )
+      },
+      (error: any) => {
+        reject(error)
+      },
+    )
+  })
+}
 
 /**
  * 获取运行时全局 Buffer。
@@ -234,61 +332,32 @@ function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
 }
 
 /**
- * 将二进制音频转换为可播放地址，优先使用 Blob URL。
+ * 将音频字节转换为可播放地址。
+ *
+ * 规则：
+ * - App 环境优先落本地文件，返回本地路径
+ * - 其他环境优先使用 Blob URL
+ * - 最后再退回 data URL
  *
  * @param bytes 音频字节数据
- * @param format 音频格式，例如 `mp3`
- * @returns 可直接绑定到 `<audio>` 的地址
+ * @param format 音频格式
+ * @returns 可播放地址
  */
-function buildAudioUrl(bytes: Uint8Array, format: string): string {
+async function buildAudioUrl(bytes: Uint8Array, format: 'mp3' | 'wav'): Promise<string> {
+  if (isApp) {
+    return await writeAudioToLocalFile(bytes, format)
+  }
+
   const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
 
   if (typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
-    let arrayBuffer: ArrayBuffer
-
-    const rawBuffer = bytes.buffer
-
-    if (rawBuffer instanceof SharedArrayBuffer) {
-      // SharedArrayBuffer 需要先复制成真正的 ArrayBuffer
-      const copied = new Uint8Array(bytes.byteLength)
-      copied.set(
-        new Uint8Array(
-          rawBuffer,
-          bytes.byteOffset,
-          bytes.byteLength,
-        ),
-      )
-      arrayBuffer = copied.buffer
-    }
-    else {
-      // 这里安全地截取出当前视图对应的 ArrayBuffer
-      arrayBuffer = rawBuffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      )
-    }
-
+    const arrayBuffer = getSafeArrayBuffer(bytes)
     return URL.createObjectURL(
       new Blob([arrayBuffer], { type: mime }),
     )
   }
 
-  const uniAny = uni as unknown as {
-    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
-  }
-
-  if (typeof uniAny.arrayBufferToBase64 === 'function') {
-    const buffer = bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ) as ArrayBuffer
-
-    const base64 = uniAny.arrayBufferToBase64(buffer)
-
-    return `data:${mime};base64,${base64}`
-  }
-
-  throw new Error('当前环境不支持生成音频播放地址')
+  throw new Error(`当前环境不支持生成 ${mime} 播放地址`)
 }
 
 /**
@@ -576,6 +645,7 @@ async function generatePodcast() {
 
   revokeAudioUrl(audioSrc.value)
   audioSrc.value = ''
+  audioLocalPath.value = ''
   audioBytes.value = 0
   audioData.value = null
   podcastTexts.value = []
@@ -680,31 +750,48 @@ async function generatePodcast() {
       }
     }
 
-    statusText.value = '关闭连接中...'
-    await FinishConnection(ws)
-    pushLog('已发送 FinishConnection')
-    await WaitForEvent(ws, MsgType.FullServerResponse, EventType.ConnectionFinished)
-    pushLog('收到 ConnectionFinished')
-
     if (audioChunks.length === 0) {
       throw new Error('No audio data received from server')
     }
 
+    statusText.value = '正在整理音频...'
     const merged = concatUint8Arrays(audioChunks)
     audioData.value = merged
     audioBytes.value = merged.length
-    audioSrc.value = buildAudioUrl(merged, 'mp3')
-    statusText.value = 'Generation complete, preparing playback'
+
+    const playableUrl = await buildAudioUrl(merged, 'mp3')
+    audioSrc.value = playableUrl
+    audioLocalPath.value = playableUrl.startsWith('blob:') ? '' : playableUrl
+    isLoading.value = false
+
+    statusText.value = '音频生成完成，准备播放...'
     pushLog(`音频生成完成，${Math.round(merged.length / 1024)} KB`)
+    pushLog(`音频播放地址：${playableUrl}`)
 
     await nextTick()
-    try {
-      await audioEl.value?.play?.()
-      pushLog('Auto play started')
+    statusText.value = '音频已生成'
+
+    const playResult = audioEl.value?.play?.()
+    if (playResult && typeof playResult.then === 'function') {
+      void playResult
+        .then(() => {
+          pushLog('Auto play started')
+          statusText.value = '播放中'
+        })
+        .catch((err) => {
+          pushLog(`自动播放失败，请手动点击播放：${String(err)}`)
+          statusText.value = '音频已生成，请手动播放'
+        })
     }
-    catch (err) {
-      pushLog(`自动播放失败，请手动点击播放：${String(err)}`)
-    }
+
+    pushLog('准备发送 FinishConnection')
+    void FinishConnection(ws)
+      .then(() => {
+        pushLog('已发送 FinishConnection')
+      })
+      .catch((err) => {
+        pushLog(`FinishConnection 发送失败，改为直接关闭连接：${String(err)}`)
+      })
   }
   catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -724,7 +811,9 @@ async function generatePodcast() {
   }
 }
 function handleCopyAudioSrc(): void {
-  if (!audioSrc.value) {
+  const target = audioLocalPath.value || audioSrc.value
+
+  if (!target) {
     uni.showToast({
       title: '音频地址为空',
       icon: 'none',
@@ -733,7 +822,7 @@ function handleCopyAudioSrc(): void {
   }
 
   uni.setClipboardData({
-    data: audioSrc.value,
+    data: target,
     success: () => {
       uni.showToast({
         title: '复制成功',
@@ -749,8 +838,77 @@ function handleCopyAudioSrc(): void {
   })
 }
 
+/**
+ * 下载音频。
+ *
+ * 直接复用当前播放地址：
+ * - 浏览器环境复用 `blob:` 地址触发下载
+ * - App 环境复用本地临时文件路径
+ */
+async function handleDownloadAudio(): Promise<void> {
+  if (isSavingAudio.value) {
+    return
+  }
+
+  if (!audioSrc.value) {
+    uni.showToast({
+      title: '暂无可下载音频',
+      icon: 'none',
+    })
+    return
+  }
+
+  try {
+    isSavingAudio.value = true
+
+    if (typeof document !== 'undefined') {
+      const link = document.createElement('a')
+      link.href = audioSrc.value
+      link.download = `podcast_${Date.now()}.mp3`
+      link.click()
+
+      pushLog(`已通过当前播放地址触发下载：${audioSrc.value}`)
+      uni.showToast({
+        title: '开始下载',
+        icon: 'success',
+      })
+      return
+    }
+
+    const localPath = audioLocalPath.value || audioSrc.value
+
+    if (!localPath) {
+      uni.showToast({
+        title: '当前无可用下载地址',
+        icon: 'none',
+      })
+      return
+    }
+
+    uni.showModal({
+      title: '下载成功',
+      content: `音频已保存到：${localPath}`,
+      showCancel: false,
+    })
+
+    pushLog(`音频已保存到本地：${localPath}`)
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    uni.showToast({
+      title: message || '下载失败',
+      icon: 'none',
+    })
+    pushLog(`音频保存失败：${message}`)
+  }
+  finally {
+    isSavingAudio.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   revokeAudioUrl(audioSrc.value)
+  audioLocalPath.value = ''
   closeCurrentSocket()
 })
 </script>
@@ -975,13 +1133,24 @@ onBeforeUnmount(() => {
         controls
         autoplay
       />
-      <view v-if="audioSrc.length > 0">
-        <view>
+      <view v-if="audioSrc.length > 0" class="audio-action-box">
+        <view class="audio-src-text">
           当前音频地址---{{ audioSrc }}
         </view>
-        <button @click="handleCopyAudioSrc">
-          复制音频地址
-        </button>
+
+        <view class="audio-btn-row">
+          <button class="audio-action-btn" @click="handleCopyAudioSrc">
+            复制音频地址
+          </button>
+
+          <button
+            class="audio-action-btn download-btn"
+            :disabled="isSavingAudio"
+            @click="handleDownloadAudio"
+          >
+            {{ isSavingAudio ? '下载中...' : '下载音频' }}
+          </button>
+        </view>
       </view>
       <view v-if="!audioSrc" class="empty-tip">
         生成完成后会在这里自动播放音频
@@ -1347,5 +1516,26 @@ onBeforeUnmount(() => {
   .result-card {
     padding: 20px;
   }
+}
+.audio-action-box {
+  margin-top: 16rpx;
+}
+
+.audio-src-text {
+  font-size: 22rpx;
+  color: #334155;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.audio-btn-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.audio-action-btn {
+  flex: 1;
+  border-radius: 18rpx;
 }
 </style>

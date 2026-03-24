@@ -63,6 +63,7 @@ const statusText = ref('等待输入')
 const errorText = ref('')
 const logs = ref<string[]>([])
 const audioSrc = ref('')
+const audioLocalPath = ref('')
 const audioBytes = ref(0)
 const audioData = ref<Uint8Array | null>(null)
 const podcastTexts = ref<PodcastRoundText[]>([])
@@ -237,70 +238,54 @@ function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   return result
 }
 
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copied = new Uint8Array(bytes.byteLength)
-  copied.set(bytes)
-  return copied.buffer
+/**
+ * 从 `Uint8Array` 中安全提取当前视图对应的 `ArrayBuffer`。
+ *
+ * @param bytes - 音频字节数据
+ * @returns 与当前字节视图对应的 `ArrayBuffer`
+ */
+function getSafeArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const rawBuffer = bytes.buffer
+
+  if (rawBuffer instanceof SharedArrayBuffer) {
+    const copied = new Uint8Array(bytes.byteLength)
+    copied.set(
+      new Uint8Array(
+        rawBuffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      ),
+    )
+    return copied.buffer
+  }
+
+  return rawBuffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  )
+}
+
+function buildAudioBlob(bytes: Uint8Array, format: string): Blob {
+  const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
+  return new Blob([getSafeArrayBuffer(bytes)], { type: mime })
 }
 
 /**
  * 将二进制音频转换为可播放地址。
  *
- * 优先生成 `Blob URL`，回退时再尝试生成 Base64 Data URL。
+ * Web 环境使用 `Blob URL`，其他支持文件系统的环境优先写入本地临时文件。
+ * 不再回退为 `data:` URL，避免播放与下载复用时出现兼容问题。
  *
  * @param bytes - 音频字节数据
  * @param format - 音频格式，例如 `mp3`
  * @returns 可直接绑定到 `<audio>` 的播放地址
  */
-function buildAudioUrl(bytes: Uint8Array, format: string): string {
-  const mime = format === 'wav' ? 'audio/wav' : 'audio/mpeg'
-
+async function buildAudioUrl(bytes: Uint8Array, format: 'mp3' | 'wav'): Promise<string> {
   if (typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
-    let arrayBuffer: ArrayBuffer
-
-    const rawBuffer = bytes.buffer
-
-    if (rawBuffer instanceof SharedArrayBuffer) {
-      // 必须复制为真正的 ArrayBuffer
-      const copied = new Uint8Array(bytes.byteLength)
-      copied.set(
-        new Uint8Array(
-          rawBuffer,
-          bytes.byteOffset,
-          bytes.byteLength,
-        ),
-      )
-      arrayBuffer = copied.buffer
-    }
-    else {
-      // 这里可以安全地收窄为 ArrayBuffer
-      arrayBuffer = rawBuffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      )
-    }
-
-    return URL.createObjectURL(
-      new Blob([arrayBuffer], { type: mime }),
-    )
+    return URL.createObjectURL(buildAudioBlob(bytes, format))
   }
 
-  const uniAny = uni as unknown as {
-    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
-  }
-
-  if (typeof uniAny.arrayBufferToBase64 === 'function') {
-    const buffer = bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ) as ArrayBuffer
-
-    const base64 = uniAny.arrayBufferToBase64(buffer)
-
-    return `data:${mime};base64,${base64}`
-  }
-
-  throw new Error('当前环境不支持生成音频播放地址')
+  return await writeAudioToLocalFile(bytes, format)
 }
 
 /**
@@ -359,62 +344,73 @@ function getLocalAudioDirectory() {
   return ''
 }
 
-function saveBlobAudio(bytes: Uint8Array) {
+function saveBlobAudio(url: string, fileName: string) {
   if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') {
     throw new TypeError('当前环境不支持浏览器下载')
   }
 
   const link = document.createElement('a')
-  const objectUrl = URL.createObjectURL(new Blob([toArrayBuffer(bytes)], { type: 'audio/mpeg' }))
-  link.href = objectUrl
-  link.download = getAudioFileName()
+  link.href = url
+  link.download = fileName
   link.click()
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
-function writeAudioToLocalFile(bytes: Uint8Array) {
+function writeAudioToLocalFile(bytes: Uint8Array, format: 'mp3' | 'wav' = 'mp3') {
   const uniAny = uni as unknown as {
-    arrayBufferToBase64?: (buffer: ArrayBuffer) => string
     getFileSystemManager?: () => {
-      writeFileSync?: (filePath: string, data: string, encoding?: string) => void
+      writeFile?: (options: {
+        filePath: string
+        data: ArrayBuffer
+        encoding?: string
+        success?: () => void
+        fail?: (err: unknown) => void
+      }) => void
+      writeFileSync?: (filePath: string, data: ArrayBuffer | string, encoding?: string) => void
     }
-    saveFile?: (options: {
-      tempFilePath: string
-      success?: (res: { savedFilePath: string }) => void
-      fail?: (err: unknown) => void
-    }) => void
   }
 
-  if (typeof uniAny.arrayBufferToBase64 !== 'function' || typeof uniAny.getFileSystemManager !== 'function') {
+  if (typeof uniAny.getFileSystemManager !== 'function') {
     throw new TypeError('当前环境不支持写入本地音频文件')
   }
 
   const fs = uniAny.getFileSystemManager()
   const baseDir = getLocalAudioDirectory()
-  if (!baseDir || typeof fs?.writeFileSync !== 'function') {
+  if (!baseDir) {
     throw new Error('当前环境缺少可写目录')
   }
 
-  const tempFilePath = `${baseDir}/${getAudioFileName()}`
-  const base64 = uniAny.arrayBufferToBase64(toArrayBuffer(bytes))
-  fs.writeFileSync(tempFilePath, base64, 'base64')
+  const fileName = getAudioFileName().replace(/\.mp3$/, `.${format}`)
+  const tempFilePath = `${baseDir}/${fileName}`
+  const buffer = getSafeArrayBuffer(bytes)
 
   return new Promise<string>((resolve, reject) => {
-    if (typeof uniAny.saveFile !== 'function') {
-      resolve(tempFilePath)
+    if (typeof fs?.writeFile === 'function') {
+      fs.writeFile({
+        filePath: tempFilePath,
+        data: buffer,
+        success: () => resolve(tempFilePath),
+        fail: err => reject(err),
+      })
       return
     }
 
-    uniAny.saveFile({
-      tempFilePath,
-      success: res => resolve(res.savedFilePath || tempFilePath),
-      fail: err => reject(err),
-    })
+    if (typeof fs?.writeFileSync === 'function') {
+      try {
+        fs.writeFileSync(tempFilePath, buffer)
+        resolve(tempFilePath)
+      }
+      catch (error) {
+        reject(error)
+      }
+      return
+    }
+
+    reject(new Error('当前环境文件系统不支持写入音频文件'))
   })
 }
 
 async function downloadAudio() {
-  if (!audioData.value?.length) {
+  if (!audioSrc.value) {
     uni.showToast({
       title: '请先生成音频',
       icon: 'none',
@@ -425,7 +421,7 @@ async function downloadAudio() {
   isDownloading.value = true
   try {
     if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
-      saveBlobAudio(audioData.value)
+      saveBlobAudio(audioSrc.value, getAudioFileName())
       pushLog('已触发浏览器音频下载')
       uni.showToast({
         title: '开始下载',
@@ -434,8 +430,8 @@ async function downloadAudio() {
       return
     }
 
-    const savedFilePath = await writeAudioToLocalFile(audioData.value)
-    pushLog(`音频已保存: ${savedFilePath}`)
+    const savedFilePath = audioLocalPath.value || audioSrc.value
+    pushLog(`音频文件地址: ${savedFilePath}`)
     uni.showModal({
       title: '下载完成',
       content: `音频已保存到：${savedFilePath}`,
@@ -695,6 +691,7 @@ async function generatePodcast() {
 
   revokeAudioUrl(audioSrc.value)
   audioSrc.value = ''
+  audioLocalPath.value = ''
   audioBytes.value = 0
   audioData.value = null
   podcastTexts.value = []
@@ -812,9 +809,12 @@ async function generatePodcast() {
     const merged = concatUint8Arrays(audioChunks)
     audioData.value = merged
     audioBytes.value = merged.length
-    audioSrc.value = buildAudioUrl(merged, 'mp3')
+    const playableUrl = await buildAudioUrl(merged, 'mp3')
+    audioSrc.value = playableUrl
+    audioLocalPath.value = playableUrl.startsWith('blob:') ? '' : playableUrl
     statusText.value = 'Generation complete, preparing playback'
     pushLog(`音频生成完成，${Math.round(merged.length / 1024)} KB`)
+    pushLog(`音频播放地址：${playableUrl}`)
 
     await nextTick()
     try {
