@@ -71,6 +71,9 @@ const isSavingAudio = ref(false)
 const audioLocalPath = ref('')
 const isSharingAudio = ref(false)
 const isAudioPlaying = ref(false)
+const audioDurationSeconds = ref(0)
+const audioCurrentTimeSeconds = ref(0)
+const isSeekingAudio = ref(false)
 
 let currentSocket: WebSocket | null = null
 let currentLogHandler: ((msg: string) => void) | null = null
@@ -95,6 +98,55 @@ const audioStatusLabel = computed(() => {
   return isAudioPlaying.value ? '播放中' : '已生成'
 })
 
+const audioSizeLabel = computed(() => formatBytes(audioBytes.value))
+const audioDurationLabel = computed(() => formatDuration(audioDurationSeconds.value))
+const durationMetaLabel = '时长'
+const storageMetaLabel = '保存位置'
+const sizeMetaLabel = '大小'
+const localFileMetaLabel = '本地文件'
+const audioCurrentTimeLabel = computed(() => formatDuration(audioCurrentTimeSeconds.value))
+const audioRemainingTimeLabel = computed(() => {
+  const remaining = Math.max(0, audioDurationSeconds.value - audioCurrentTimeSeconds.value)
+  return formatDuration(remaining)
+})
+const audioProgressPercent = computed(() => {
+  if (audioDurationSeconds.value <= 0) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(0, (audioCurrentTimeSeconds.value / audioDurationSeconds.value) * 100))
+})
+const audioStorageText = computed(() => {
+  if (!audioLocalPath.value) {
+    return '未保存'
+  }
+
+  return isMpWeixinRuntime() ? '小程序沙盒' : '应用沙盒'
+})
+const audioStorageLabel = computed(() => {
+  if (!audioLocalPath.value) {
+    return 'æœªä¿å­˜'
+  }
+
+  return isMpWeixinRuntime() ? 'å°ç¨‹åºæ²™ç›’' : 'åº”ç”¨æ²™ç›’'
+})
+
+function handleAudioLoadedMetadata(event: Event): void {
+  const target = event.target as HTMLAudioElement | null
+  updateAudioDuration(target?.duration)
+}
+
+function handleAudioEnded(): void {
+  isAudioPlaying.value = false
+  audioCurrentTimeSeconds.value = audioDurationSeconds.value
+}
+
+function handleAudioPauseEvent(): void {
+  if (!isSeekingAudio.value) {
+    isAudioPlaying.value = false
+  }
+}
+
 /**
  * 获取当前运行平台。
  *
@@ -112,6 +164,57 @@ function getRuntimePlatform(): string {
  */
 function isMpWeixinRuntime(): boolean {
   return getRuntimePlatform() === 'mp-weixin'
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B'
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2
+  return `${value.toFixed(digits)} ${units[unitIndex]}`
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '--:--'
+  }
+
+  const totalSeconds = Math.max(0, Math.round(seconds))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const remainSeconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return [hours, minutes, remainSeconds].map(item => String(item).padStart(2, '0')).join(':')
+  }
+
+  return [minutes, remainSeconds].map(item => String(item).padStart(2, '0')).join(':')
+}
+
+function getAudioStorageHint(path: string): string {
+  if (!path) {
+    return 'æœªä¿å­˜åˆ°æœ¬åœ°'
+  }
+
+  if (isMpWeixinRuntime()) {
+    return `å°ç¨‹åºæ²™ç›’æ–‡ä»¶ï¼š${path}`
+  }
+
+  if (isApp) {
+    return `App æ²™ç›’æ–‡ä»¶ï¼š${path}`
+  }
+
+  return `æœ¬åœ°æ–‡ä»¶ï¼š${path}`
 }
 
 /**
@@ -517,6 +620,71 @@ async function ensureAudioLocalPath(): Promise<string> {
   return localPath
 }
 
+function updateAudioDuration(duration: number | undefined): void {
+  if (!Number.isFinite(duration) || !duration || duration <= 0) {
+    return
+  }
+
+  audioDurationSeconds.value = Number(duration)
+}
+
+function updateAudioCurrentTime(currentTime: number | undefined): void {
+  if (isSeekingAudio.value || !Number.isFinite(currentTime) || currentTime == null || currentTime < 0) {
+    return
+  }
+
+  audioCurrentTimeSeconds.value = Number(currentTime)
+}
+
+async function waitForAudioReady(getDuration: () => number | undefined): Promise<void> {
+  for (let i = 0; i < 20; i += 1) {
+    const duration = getDuration()
+
+    if (Number.isFinite(duration) && Number(duration) > 0) {
+      updateAudioDuration(duration)
+      return
+    }
+
+    await sleep(100)
+  }
+}
+
+function syncAudioTimeFromInnerAudio(): void {
+  updateAudioCurrentTime(innerAudioContext?.currentTime)
+}
+
+function handleAudioTimeUpdate(event: Event): void {
+  const target = event.target as HTMLAudioElement | null
+  updateAudioCurrentTime(target?.currentTime)
+}
+
+function seekAudioTo(seconds: number): void {
+  const targetTime = Math.min(Math.max(0, seconds), audioDurationSeconds.value || 0)
+  audioCurrentTimeSeconds.value = targetTime
+  const innerAudio = getInnerAudioContext()
+  if (innerAudio) {
+    innerAudio.seek?.(targetTime)
+    return
+  }
+
+  if (audioEl.value) {
+    audioEl.value.currentTime = targetTime
+  }
+}
+
+function handleAudioSeekChanging(event: { detail?: { value?: number } }): void {
+  isSeekingAudio.value = true
+  const percent = Number(event?.detail?.value ?? 0)
+  audioCurrentTimeSeconds.value = (audioDurationSeconds.value * percent) / 100
+}
+
+function handleAudioSeekChange(event: { detail?: { value?: number } }): void {
+  const percent = Number(event?.detail?.value ?? 0)
+  const nextTime = (audioDurationSeconds.value * percent) / 100
+  seekAudioTo(nextTime)
+  isSeekingAudio.value = false
+}
+
 function getInnerAudioContext(): UniNamespace.InnerAudioContext | null {
   if (innerAudioContext) {
     return innerAudioContext
@@ -540,7 +708,17 @@ function getInnerAudioContext(): UniNamespace.InnerAudioContext | null {
 
   innerAudioContext.onPlay?.(() => {
     isAudioPlaying.value = true
+    syncAudioTimeFromInnerAudio()
     statusText.value = '播放中'
+  })
+  innerAudioContext.onCanplay?.(() => {
+    setTimeout(() => {
+      updateAudioDuration(innerAudioContext?.duration)
+      syncAudioTimeFromInnerAudio()
+    }, 120)
+  })
+  innerAudioContext.onTimeUpdate?.(() => {
+    syncAudioTimeFromInnerAudio()
   })
   innerAudioContext.onPause?.(() => {
     isAudioPlaying.value = false
@@ -548,10 +726,12 @@ function getInnerAudioContext(): UniNamespace.InnerAudioContext | null {
   })
   innerAudioContext.onStop?.(() => {
     isAudioPlaying.value = false
+    audioCurrentTimeSeconds.value = 0
     statusText.value = '已停止'
   })
   innerAudioContext.onEnded?.(() => {
     isAudioPlaying.value = false
+    audioCurrentTimeSeconds.value = audioDurationSeconds.value
     statusText.value = '音频已生成'
   })
   innerAudioContext.onError?.((error: any) => {
@@ -576,17 +756,23 @@ async function playCurrentAudio(): Promise<void> {
     }
     catch {}
 
+    audioCurrentTimeSeconds.value = 0
     innerAudio.src = audioSrc.value
     innerAudio.play()
+    await waitForAudioReady(() => innerAudio.duration)
     return
   }
 
   await nextTick()
+  audioCurrentTimeSeconds.value = 0
+  audioEl.value?.load?.()
   const playResult = audioEl.value?.play?.()
 
   if (playResult && typeof playResult.then === 'function') {
     await playResult
   }
+
+  await waitForAudioReady(() => audioEl.value?.duration)
 
   isAudioPlaying.value = true
   statusText.value = '播放中'
@@ -910,6 +1096,9 @@ async function generatePodcast(): Promise<void> {
   audioLocalPath.value = ''
   audioBytes.value = 0
   audioData.value = null
+  audioDurationSeconds.value = 0
+  audioCurrentTimeSeconds.value = 0
+  isSeekingAudio.value = false
   isAudioPlaying.value = false
   podcastTexts.value = []
   errorText.value = ''
@@ -1434,7 +1623,7 @@ onBeforeUnmount(() => {
         <view class="meta-info">
           <text>发音人 1：{{ selectedSpeaker.label }}</text>
           <text>发音人 2：{{ selectedSpeaker2.label }}</text>
-          <text>音频大小：{{ Math.round(audioBytes / 1024) }} KB</text>
+          <text>音频大小：{{ audioSizeLabel }}</text>
           <text>文本段数：{{ podcastTexts.length }}</text>
         </view>
       </view>
@@ -1454,6 +1643,10 @@ onBeforeUnmount(() => {
         class="audio-player-hidden"
         :src="audioSrc"
         preload="auto"
+        @loadedmetadata="handleAudioLoadedMetadata"
+        @pause="handleAudioPauseEvent"
+        @ended="handleAudioEnded"
+        @timeupdate="handleAudioTimeUpdate"
       />
       <view v-if="audioSrc.length > 0" class="audio-panel">
         <view class="audio-panel-head">
@@ -1472,12 +1665,40 @@ onBeforeUnmount(() => {
 
         <view class="audio-meta-grid">
           <view class="audio-meta-item">
-            <text class="audio-meta-label">大小</text>
-            <text class="audio-meta-value">{{ Math.max(1, Math.round(audioBytes / 1024)) }} KB</text>
+            <text class="audio-meta-label">{{ durationMetaLabel }}</text>
+            <text class="audio-meta-value">{{ audioDurationLabel }}</text>
           </view>
           <view class="audio-meta-item">
-            <text class="audio-meta-label">本地文件</text>
+            <text class="audio-meta-label">{{ storageMetaLabel }}</text>
+            <text class="audio-meta-value">{{ audioStorageText }}</text>
+          </view>
+          <view class="audio-meta-item">
+            <text class="audio-meta-label">{{ sizeMetaLabel }}</text>
+            <text class="audio-meta-value">{{ audioSizeLabel }}</text>
+          </view>
+          <view class="audio-meta-item">
+            <text class="audio-meta-label">{{ localFileMetaLabel }}</text>
             <text class="audio-meta-value">{{ audioLocalPath ? '已生成' : '未生成' }}</text>
+          </view>
+        </view>
+
+        <view class="audio-progress-card">
+          <slider
+            class="audio-progress-slider"
+            :value="audioProgressPercent"
+            :min="0"
+            :max="100"
+            :step="0.1"
+            activeColor="#2563eb"
+            backgroundColor="#cbd5e1"
+            block-color="#ffffff"
+            block-size="18"
+            @changing="handleAudioSeekChanging"
+            @change="handleAudioSeekChange"
+          />
+          <view class="audio-progress-time">
+            <text>{{ audioCurrentTimeLabel }}</text>
+            <text>-{{ audioRemainingTimeLabel }}</text>
           </view>
         </view>
 
@@ -1853,6 +2074,26 @@ onBeforeUnmount(() => {
   font-size: 28rpx;
   font-weight: 600;
   color: #0f172a;
+}
+
+.audio-progress-card {
+  margin-top: 18rpx;
+  padding: 18rpx 18rpx 14rpx;
+  background: rgba(255, 255, 255, 0.84);
+  border-radius: 18rpx;
+}
+
+.audio-progress-slider {
+  margin: 0;
+}
+
+.audio-progress-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #475569;
 }
 
 .audio-src-text {
